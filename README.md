@@ -1,8 +1,14 @@
 # Jason
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/jason`. To experiment with that code, run `bin/console` for an interactive prompt.
+## The goal
 
-TODO: Delete this and the text above, and describe your gem
+I wanted:
+ - Realtime reactive interfaces that persist data automatically to the server, and receive updates from the server
+ - Redux for awesome state management
+
+I also wanted to avoid writing essentially the same code multiple times in different places to handle common CRUD-like operations. Combine Rails schema definition files, REST endpoints, Redux actions, stores, reducers, handlers for websocket payloads and the translations between them, and it adds up to tons of repetitive boilerplate. This inhibits refactoring and makes mistakes more likely.
+
+Jason attempts to minimize this repitition by auto-generating API endpoints, redux stores and actions from a single schema definition. Further it adds listeners to ActiveRecord models allowing the redux store to be subscribed to updates from a model or set of models.
 
 ## Installation
 
