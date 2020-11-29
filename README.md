@@ -3,10 +3,12 @@
 ## The goal
 
 I wanted:
- - Realtime reactive interfaces that persist data automatically to the server, and receive updates from the server
+ - Automatic updates to client state based on database state
+ - Automatic persistence to database
  - Redux for awesome state management
+ - Optimistic updates
 
-I also wanted to avoid writing essentially the same code multiple times in different places to handle common CRUD-like operations. Combine Rails schema definition files, REST endpoints, Redux actions, stores, reducers, handlers for websocket payloads and the translations between them, and it adds up to tons of repetitive boilerplate. This inhibits refactoring and makes mistakes more likely.
+I also wanted to avoid writing essentially the same code multiple times in different places to handle common CRUD-like operations. Combine Rails schema definition files, REST endpoints, Redux actions, stores, reducers, handlers for websocket payloads and the translations between them, and it adds up to tons of repetitive boilerplate. Every change to the data schema requires updates in five or six files. This inhibits refactoring and makes mistakes more likely.
 
 Jason attempts to minimize this repitition by auto-generating API endpoints, redux stores and actions from a single schema definition. Further it adds listeners to ActiveRecord models allowing the redux store to be subscribed to updates from a model or set of models.
 

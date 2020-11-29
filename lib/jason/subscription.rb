@@ -27,6 +27,14 @@ class Jason::Subscription
     $redis.del("jason:subscriptions:#{id}")
   end
 
+  def add_consumer(consumer_id)
+    $redis.sadd("jason:subscriptions:#{id}:consumers", consumer_id)
+  end
+
+  def remove_consumer(consumer_id)
+    $redis.srem("jason:subscriptions:#{id}:consumers", consumer_id)
+  end
+
   def channel
     "jason:#{id}"
   end
@@ -38,32 +46,21 @@ class Jason::Subscription
     end
   end
 
-  include ::NewRelic::Agent::MethodTracer
-
-  def get
-    keys = config.keys.map do |model|
-      ["#{channel}:#{model}:value", "#{channel}:#{model}:idx"]
-    end.flatten
-
-    result = $redis.mget(keys).each_slice(2).to_a.map do |x|
-      value = JSON.parse(x[0] || '[]')
-      idx = x[1].to_i
-      { idx: idx, value: value }
-    end
-
-    models = config.keys.zip(result).to_h
+  def get(model)
+    value = JSON.parse($redis.get("#{channel}:#{model}:value") || '{}')
+    idx = $redis.get("#{channel}:#{model}:idx").to_i
 
     {
       type: 'payload',
-      models: models
+      model: model,
+      value: value,
+      idx: idx
     }
   end
-  add_method_tracer :get, 'JsonSub/get'
 
   def get_diff(old_value, value)
     JsonDiff.generate(old_value, value)
   end
-  add_method_tracer :get_diff, 'JsonSub/get_diff'
 
   def deep_stringify(value)
     if value.is_a?(Hash)
@@ -72,7 +69,6 @@ class Jason::Subscription
       value.map { |x| x.deep_stringify_keys }
     end
   end
-  add_method_tracer :deep_stringify, 'JsonSub/stringify'
 
   def get_throttle
     if !$throttle_rate || !$throttle_timeout || Time.now.utc > $throttle_timeout
@@ -124,16 +120,12 @@ class Jason::Subscription
     end_time = Time.now.utc
 
     payload = {
-      models: {
-        model => {
-          diff: diff,
-          idx: idx.to_i
-        }
-      },
+      model: model,
+      diff: diff,
+      idx: idx.to_i,
       latency: ((end_time - start_time)*1000).round
     }
 
     ActionCable.server.broadcast("jason:#{id}", payload)
   end
-  add_method_tracer :update, 'JsonSub/update'
 end
