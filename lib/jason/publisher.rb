@@ -32,13 +32,20 @@ module Jason::Publisher
   end
 
   class_methods do
+    def subscriptions
+      $redis.hgetall("jason:#{self.name.underscore}:subscriptions")
+    end
+
     def publish_all(instances)
       instances.each(&:cache_json)
 
-      subscriptions = $redis.hgetall("jason:#{self.name.underscore}:subscriptions")
       subscriptions.each do |id, config_json|
         Jason::Subscription.new(id: id).update(self.name.underscore)
       end
+    end
+
+    def flush_cache
+      $redis.del("jason:#{self.name.underscore}:cache")
     end
 
     def setup_json

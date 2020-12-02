@@ -4,25 +4,32 @@ class Jason::Subscription
   def initialize(id: nil, config: nil)
     if id
       @id = id
-      @config = $redis.hgetall("jason:subscriptions:#{id}").map { |k,v| [k, JSON.parse(v)] }.to_h.with_indifferent_access
+      raw_config = $redis.hgetall("jason:subscriptions:#{id}").map { |k,v| [k, JSON.parse(v)] }.to_h.with_indifferent_access
+      set_config(raw_config)
     else
       @id = Digest::MD5.hexdigest(config.to_json)
       configure(config)
     end
   end
 
-  def configure(config)
-    @config = config.with_indifferent_access
+  def set_config(raw_config)
+    @config =  raw_config.with_indifferent_access.map { |k,v| [k.underscore.to_s, v] }.to_h
+  end
+
+  def configure(raw_config)
+    set_config(raw_config)
     $redis.hmset("jason:subscriptions:#{id}", *config.map { |k,v| [k, v.to_json]}.flatten)
+
     config.each do |model, value|
-      $redis.hset("jason:#{model}:subscriptions", id, value.to_json)
+      puts model
+      $redis.hset("jason:#{model.to_s.underscore}:subscriptions", id, value.to_json)
       update(model)
     end
   end
 
   def destroy
     config.each do |model, value|
-      $redis.srem("jason:#{model}:subscriptions", id)
+      $redis.srem("jason:#{model.to_s.underscore}:subscriptions", id)
     end
     $redis.del("jason:subscriptions:#{id}")
   end
@@ -42,7 +49,7 @@ class Jason::Subscription
   def self.publish_all
     JASON_API_MODEL.each do |model, _v|
       klass = model.to_s.classify.constantize
-      klass.publish_all if klass.respond_to?(:publish_all)
+      klass.publish_all(klass.all) if klass.respond_to?(:publish_all)
     end
   end
 
