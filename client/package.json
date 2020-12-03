@@ -1,11 +1,12 @@
 {
   "name": "@jamesr2323/jason",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "devDependencies": {
     "typescript": "^4.1.2"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "publish": "npm publish @jamesr2323/jason --access public"
   },
   "dependencies": {
     "@rails/actioncable": "^6.0.3-4",
