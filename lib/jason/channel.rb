@@ -18,11 +18,11 @@ class Jason::Channel < ActionCable::Channel::Base
         subscriptions.reject! { |s| s.id == subscription.id }
         subscription.remove_consumer(identifier)
 
-        # Rails for some reason removed stream_from, so we need to stop all and then restart the other streams
-        stop_all_streams
-        subscriptions.each do |s|
-          stream_from s.channel
-        end
+        # Rails for some reason removed stop_stream_from, so we need to stop all and then restart the other streams
+        # stop_all_streams
+        # subscriptions.each do |s|
+        #   stream_from s.channel
+        # end
       elsif (data = message['getPayload'])
         config = data.config
         model = data.model
