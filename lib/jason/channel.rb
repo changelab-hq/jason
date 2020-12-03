@@ -16,17 +16,17 @@ class Jason::Channel < ActionCable::Channel::Base
       elsif (config = message['removeSubscription'])
         subscription = Jason::Subscription.new(config: config)
         subscriptions.reject! { |s| s.id == subscription.id }
-        subscription.add_consumer(identifier)
+        subscription.remove_consumer(identifier)
 
         # Rails for some reason removed stream_from, so we need to stop all and then restart the other streams
         stop_all_streams
         subscriptions.each do |s|
           stream_from s.channel
         end
-      elsif (model = message['getPayload'])
-        subscriptions.each do |s|
-          transmit(s.get(model.to_s.underscore))
-        end
+      elsif (data = message['getPayload'])
+        config = data.config
+        model = data.model
+        Jason::Subscription.new(config: config).get(model.to_s.underscore)
       end
     rescue => e
       puts e.message

@@ -19,12 +19,6 @@ class Jason::Subscription
   def configure(raw_config)
     set_config(raw_config)
     $redis.hmset("jason:subscriptions:#{id}", *config.map { |k,v| [k, v.to_json]}.flatten)
-
-    config.each do |model, value|
-      puts model
-      $redis.hset("jason:#{model.to_s.underscore}:subscriptions", id, value.to_json)
-      update(model)
-    end
   end
 
   def destroy
@@ -35,15 +29,53 @@ class Jason::Subscription
   end
 
   def add_consumer(consumer_id)
+    before_consumer_count = consumer_count
     $redis.sadd("jason:subscriptions:#{id}:consumers", consumer_id)
+    $redis.hset("jason:consumers", consumer_id, Time.now.utc)
+
+    if before_consumer_count == 0
+      add_subscriptions
+      publish_all
+    end
   end
 
   def remove_consumer(consumer_id)
     $redis.srem("jason:subscriptions:#{id}:consumers", consumer_id)
+    $redis.hdel("jason:consumers", consumer_id)
+
+    if consumer_count == 0
+      remove_subscriptions
+    end
+  end
+
+  def consumer_count
+    $redis.scard("jason:subscriptions:#{id}:consumers")
   end
 
   def channel
     "jason:#{id}"
+  end
+
+  def publish_all
+    config.each do |model, model_config|
+      klass = model.to_s.classify.constantize
+      conditions = model_config['conditions'] || {}
+      klass.where(conditions).find_each(&:cache_json)
+      update(model)
+    end
+  end
+
+  def add_subscriptions
+    config.each do |model, value|
+      $redis.hset("jason:#{model.to_s.underscore}:subscriptions", id, value.to_json)
+      update(model)
+    end
+  end
+
+  def remove_subscriptions
+    config.each do |model, _|
+      $redis.hdel("jason:#{model.to_s.underscore}:subscriptions", id)
+    end
   end
 
   def self.publish_all
@@ -59,6 +91,7 @@ class Jason::Subscription
 
     {
       type: 'payload',
+      md5Hash: id,
       model: model,
       value: value,
       idx: idx
@@ -128,6 +161,7 @@ class Jason::Subscription
 
     payload = {
       model: model,
+      md5Hash: id,
       diff: diff,
       idx: idx.to_i,
       latency: ((end_time - start_time)*1000).round
