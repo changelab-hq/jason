@@ -1,6 +1,6 @@
 {
   "name": "@jamesr2323/jason",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "devDependencies": {
     "typescript": "^4.1.2"
   },
