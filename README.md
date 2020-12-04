@@ -17,7 +17,7 @@ Jason attempts to minimize this repitition by auto-generating API endpoints, red
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'jason'
+gem 'jason-rails'
 ```
 
 And then execute:
