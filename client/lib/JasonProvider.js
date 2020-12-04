@@ -1,19 +1,41 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const createActions_1 = require("./createActions");
+const createActions_1 = __importDefault(require("./createActions"));
 const actioncable_1 = require("@rails/actioncable");
-const JasonContext_1 = require("./JasonContext");
-const axios_1 = require("axios");
-const axios_case_converter_1 = require("axios-case-converter");
+const JasonContext_1 = __importDefault(require("./JasonContext"));
+const axios_1 = __importDefault(require("axios"));
+const axios_case_converter_1 = __importDefault(require("axios-case-converter"));
 const react_redux_1 = require("react-redux");
 const toolkit_1 = require("@reduxjs/toolkit");
-const createJasonReducers_1 = require("./createJasonReducers");
-const createPayloadHandler_1 = require("./createPayloadHandler");
-const makeEager_1 = require("./makeEager");
+const createJasonReducers_1 = __importDefault(require("./createJasonReducers"));
+const createPayloadHandler_1 = __importDefault(require("./createPayloadHandler"));
+const makeEager_1 = __importDefault(require("./makeEager"));
 const humps_1 = require("humps");
-const blueimp_md5_1 = require("blueimp-md5");
-const lodash_1 = require("lodash");
-const react_1 = require("react");
+const blueimp_md5_1 = __importDefault(require("blueimp-md5"));
+const lodash_1 = __importDefault(require("lodash"));
+const react_1 = __importStar(require("react"));
 const JasonProvider = ({ reducers, middleware, extraActions, children }) => {
     const [store, setStore] = react_1.useState(null);
     const [value, setValue] = react_1.useState(null);

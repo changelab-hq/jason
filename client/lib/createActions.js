@@ -1,8 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const actionFactory_1 = require("./actionFactory");
-const pluralize_1 = require("pluralize");
-const lodash_1 = require("lodash");
+const actionFactory_1 = __importDefault(require("./actionFactory"));
+const pluralize_1 = __importDefault(require("pluralize"));
+const lodash_1 = __importDefault(require("lodash"));
 const uuid_1 = require("uuid");
 function enrich(type, payload) {
     if (type.split('/')[1] === 'upsert' && !(type.split('/')[0] === 'session')) {

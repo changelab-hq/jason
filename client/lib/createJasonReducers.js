@@ -1,8 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const toolkit_1 = require("@reduxjs/toolkit");
-const pluralize_1 = require("pluralize");
-const lodash_1 = require("lodash");
+const pluralize_1 = __importDefault(require("pluralize"));
+const lodash_1 = __importDefault(require("lodash"));
 function generateSlices(schema) {
     const sliceNames = schema.map(k => pluralize_1.default(k));
     const adapter = toolkit_1.createEntityAdapter();

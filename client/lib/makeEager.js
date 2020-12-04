@@ -1,7 +1,10 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-const pluralize_1 = require("pluralize");
-const lodash_1 = require("lodash");
+const pluralize_1 = __importDefault(require("pluralize"));
+const lodash_1 = __importDefault(require("lodash"));
 const react_redux_1 = require("react-redux");
 function default_1(schema) {
     function addRelations(s, objects, objectType, relations) {

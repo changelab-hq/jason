@@ -1,9 +1,12 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const jsonpatch_1 = require("jsonpatch");
 const humps_1 = require("humps");
-const pluralize_1 = require("pluralize");
-const lodash_1 = require("lodash");
+const pluralize_1 = __importDefault(require("pluralize"));
+const lodash_1 = __importDefault(require("lodash"));
 function diffSeconds(dt2, dt1) {
     var diff = (dt2.getTime() - dt1.getTime()) / 1000;
     return Math.abs(Math.round(diff));

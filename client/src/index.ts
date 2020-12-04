@@ -1,5 +1,7 @@
-import JasonProvider from './JasonProvider'
-import useAct from './useAct'
-import useSub from './useSub'
+import _JasonProvider from './JasonProvider'
+import _useAct from './useAct'
+import _useSub from './useSub'
 
-export { JasonProvider, useAct, useSub }
+export const JasonProvider = _JasonProvider
+export const useAct = _useAct
+export const useSub = _useSub
