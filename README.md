@@ -14,23 +14,20 @@ Jason attempts to minimize this repitition by auto-generating API endpoints, red
 
 ## Installation
 
-Add this line to your application's Gemfile:
+Add the gem and the NPM package
 
 ```ruby
 gem 'jason-rails'
 ```
 
-And then execute:
-
-    $ bundle install
-
-Or install it yourself as:
-
-    $ gem install jason
+```bash
+  yarn add @jamesr2323/jason
+```
 
 ## Usage
 
-TODO: Write usage instructions here
+### Define your schema
+
 
 ## Development
 
