@@ -24,8 +24,8 @@ class Jason::Channel < ActionCable::Channel::Base
         #   stream_from s.channel
         # end
       elsif (data = message['getPayload'])
-        config = data.config
-        model = data.model
+        config = data['config']
+        model = data['model']
         Jason::Subscription.new(config: config).get(model.to_s.underscore)
       end
     rescue => e
