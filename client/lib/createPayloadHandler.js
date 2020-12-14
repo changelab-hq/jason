@@ -13,7 +13,8 @@ function diffSeconds(dt2, dt1) {
 }
 function createPayloadHandler(dispatch, subscription, model, config) {
     console.log({ model, config });
-    let payload = {};
+    let payload = [];
+    let previousPayload = [];
     let idx = 0;
     let patchQueue = {};
     let lastCheckAt = new Date();
@@ -29,10 +30,16 @@ function createPayloadHandler(dispatch, subscription, model, config) {
         console.log("Dispatching", { payload, includeModels });
         includeModels.forEach(m => {
             const subPayload = lodash_1.default.flatten(lodash_1.default.compact(humps_1.camelizeKeys(payload).map(instance => instance[m])));
-            console.log({ type: `${pluralize_1.default(m)}/upsertMany`, payload: subPayload });
+            const previousSubPayload = lodash_1.default.flatten(lodash_1.default.compact(humps_1.camelizeKeys(previousPayload).map(instance => instance[m])));
+            // Find IDs that were in the payload but are no longer
+            const idsToRemove = lodash_1.default.difference(previousSubPayload.map(i => i.id), subPayload.map(i => i.id));
             dispatch({ type: `${pluralize_1.default(m)}/upsertMany`, payload: subPayload });
+            dispatch({ type: `${pluralize_1.default(m)}/removeMany`, payload: idsToRemove });
         });
+        const idsToRemove = lodash_1.default.difference(previousPayload.map(i => i.id), payload.map(i => i.id));
         dispatch({ type: `${pluralize_1.default(model)}/upsertMany`, payload: humps_1.camelizeKeys(payload) });
+        dispatch({ type: `${pluralize_1.default(model)}/removeMany`, payload: idsToRemove });
+        previousPayload = payload;
     }
     function processQueue() {
         console.log({ idx, patchQueue });

@@ -10,7 +10,8 @@ function diffSeconds(dt2, dt1) {
 
 export default function createPayloadHandler(dispatch, subscription, model, config) {
   console.log({ model, config })
-  let payload = {}
+  let payload = [] as any[]
+  let previousPayload = [] as any[]
   let idx = 0
   let patchQueue = {}
 
@@ -32,11 +33,20 @@ export default function createPayloadHandler(dispatch, subscription, model, conf
 
     includeModels.forEach(m => {
       const subPayload = _.flatten(_.compact(camelizeKeys(payload).map(instance => instance[m])))
-      console.log({ type: `${pluralize(m)}/upsertMany`, payload: subPayload })
+      const previousSubPayload = _.flatten(_.compact(camelizeKeys(previousPayload).map(instance => instance[m])))
+
+      // Find IDs that were in the payload but are no longer
+      const idsToRemove = _.difference(previousSubPayload.map(i => i.id), subPayload.map(i => i.id))
+
       dispatch({ type: `${pluralize(m)}/upsertMany`, payload: subPayload })
+      dispatch({ type: `${pluralize(m)}/removeMany`, payload: idsToRemove })
     })
 
+    const idsToRemove = _.difference(previousPayload.map(i => i.id), payload.map(i => i.id))
+
     dispatch({ type: `${pluralize(model)}/upsertMany`, payload: camelizeKeys(payload) })
+    dispatch({ type: `${pluralize(model)}/removeMany`, payload: idsToRemove })
+    previousPayload = payload
   }
 
   function processQueue() {

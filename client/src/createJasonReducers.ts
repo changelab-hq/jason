@@ -16,6 +16,7 @@ function generateSlices(schema) {
         add: adapter.addOne,
         setAll: adapter.setAll,
         remove: adapter.removeOne,
+        removeMany: adapter.removeMany,
         movePriority: (s, { payload: { id, priority, parentFilter } }) => {
           // Get IDs and insert our item at the new index
           var affectedIds = _.orderBy(_.filter(_.values(s.entities), parentFilter).filter(e => e.id !== id), 'priority').map(e => e.id)

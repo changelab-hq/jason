@@ -154,7 +154,6 @@ class Jason::Subscription
 
     idx = result[0]
     old_value = JSON.parse(result[1] || '{}')
-
     diff = get_diff(old_value, value)
 
     end_time = Time.now.utc

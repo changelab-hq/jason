@@ -19,6 +19,7 @@ function generateSlices(schema) {
                     add: adapter.addOne,
                     setAll: adapter.setAll,
                     remove: adapter.removeOne,
+                    removeMany: adapter.removeMany,
                     movePriority: (s, { payload: { id, priority, parentFilter } }) => {
                         // Get IDs and insert our item at the new index
                         var affectedIds = lodash_1.default.orderBy(lodash_1.default.filter(lodash_1.default.values(s.entities), parentFilter).filter(e => e.id !== id), 'priority').map(e => e.id);
