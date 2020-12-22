@@ -1,14 +1,15 @@
 import { apply_patch } from 'jsonpatch'
-import { camelizeKeys } from 'humps'
+import deepCamelizeKeys from './deepCamelizeKeys'
 import pluralize from 'pluralize'
 import _ from 'lodash'
+import { validate as isUuid } from 'uuid'
 
 function diffSeconds(dt2, dt1) {
   var diff =(dt2.getTime() - dt1.getTime()) / 1000
   return Math.abs(Math.round(diff))
 }
 
-export default function createPayloadHandler(dispatch, subscription, model, config) {
+export default function createPayloadHandler(dispatch, serverActionQueue, subscription, model, config) {
   console.log({ model, config })
   let payload = [] as any[]
   let previousPayload = [] as any[]
@@ -24,9 +25,20 @@ export default function createPayloadHandler(dispatch, subscription, model, conf
     subscription.send({ getPayload: { model, config } })
   }
 
+  function camelizeKeys(item) {
+    return deepCamelizeKeys(item, key => isUuid(key))
+  }
+
   const tGetPayload = _.throttle(getPayload, 10000)
 
   function dispatchPayload() {
+    // We want to avoid updates from server overwriting changes to local state, so if there is a queue then wait.
+    if (!serverActionQueue.fullySynced()) {
+      console.log(serverActionQueue.getData())
+      setTimeout(dispatchPayload, 100)
+      return
+    }
+
     const includeModels = (config.includeModels || []).map(m => _.camelCase(m))
 
     console.log("Dispatching", { payload, includeModels })

@@ -22,4 +22,9 @@ Gem::Specification.new do |spec|
   end
   spec.executables   = []
   spec.require_paths = ["lib"]
+
+  spec.add_dependency "rails", ">= 5"
+  spec.add_dependency "connection_pool", ">= 2.2.3"
+  spec.add_dependency "redis", ">= 4"
+  spec.add_dependency "jsondiff"
 end

@@ -24,7 +24,7 @@ export default (dis, store, entity, { extraActions = {}, hasPriority = false } =
     return dis({ type: `${pluralize(entity)}/remove`, payload: id })
   }
 
-  const extraActionsResolved = _.mapValues(extraActions, v => v(dis, store, entity))
+  const extraActionsResolved = extraActions ? _.mapValues(extraActions, v => v(dis, store, entity)) : {}
 
   if (hasPriority) {
     return { add, upsert, setAll, remove, movePriority, ...extraActionsResolved }

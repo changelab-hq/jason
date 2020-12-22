@@ -31,22 +31,48 @@ const react_redux_1 = require("react-redux");
 const toolkit_1 = require("@reduxjs/toolkit");
 const createJasonReducers_1 = __importDefault(require("./createJasonReducers"));
 const createPayloadHandler_1 = __importDefault(require("./createPayloadHandler"));
+const createOptDis_1 = __importDefault(require("./createOptDis"));
 const makeEager_1 = __importDefault(require("./makeEager"));
 const humps_1 = require("humps");
 const blueimp_md5_1 = __importDefault(require("blueimp-md5"));
 const lodash_1 = __importDefault(require("lodash"));
 const react_1 = __importStar(require("react"));
+const uuid_1 = require("uuid");
 const JasonProvider = ({ reducers, middleware, extraActions, children }) => {
     const [store, setStore] = react_1.useState(null);
     const [value, setValue] = react_1.useState(null);
     const [connected, setConnected] = react_1.useState(false);
     const csrfToken = document.querySelector("meta[name=csrf-token]").content;
     axios_1.default.defaults.headers.common['X-CSRF-Token'] = csrfToken;
-    const restClient = axios_case_converter_1.default(axios_1.default.create());
+    const restClient = axios_case_converter_1.default(axios_1.default.create(), {
+        preservedKeys: (key) => {
+            return uuid_1.validate(key);
+        }
+    });
     react_1.useEffect(() => {
         restClient.get('/jason/api/schema')
             .then(({ data: snakey_schema }) => {
             const schema = humps_1.camelizeKeys(snakey_schema);
+            const serverActionQueue = function () {
+                const queue = [];
+                let inFlight = false;
+                return {
+                    addItem: (item) => queue.push(item),
+                    getItem: () => {
+                        if (inFlight)
+                            return false;
+                        const item = queue.shift();
+                        if (item) {
+                            inFlight = true;
+                            return item;
+                        }
+                        return false;
+                    },
+                    itemProcessed: () => inFlight = false,
+                    fullySynced: () => queue.length === 0 && !inFlight,
+                    getData: () => ({ queue, inFlight })
+                };
+            }();
             const consumer = actioncable_1.createConsumer();
             const allReducers = Object.assign(Object.assign({}, reducers), createJasonReducers_1.default(schema));
             console.log({ schema, allReducers });
@@ -78,7 +104,7 @@ const JasonProvider = ({ reducers, middleware, extraActions, children }) => {
                 const md5Hash = blueimp_md5_1.default(JSON.stringify(config));
                 console.log('Subscribe with', config, md5Hash);
                 lodash_1.default.map(config, (v, model) => {
-                    payloadHandlers[`${model}:${md5Hash}`] = createPayloadHandler_1.default(store.dispatch, subscription, model, schema[model]);
+                    payloadHandlers[`${model}:${md5Hash}`] = createPayloadHandler_1.default(store.dispatch, serverActionQueue, subscription, model, schema[model]);
                 });
                 subscription.send({ createSubscription: config });
                 return () => removeSubscription(config);
@@ -90,7 +116,8 @@ const JasonProvider = ({ reducers, middleware, extraActions, children }) => {
                     delete payloadHandlers[`${model}:${md5Hash}`];
                 });
             }
-            const actions = createActions_1.default(schema, store, restClient, extraActions);
+            const optDis = createOptDis_1.default(schema, store.dispatch, restClient, serverActionQueue);
+            const actions = createActions_1.default(schema, store, restClient, optDis, extraActions);
             const eager = makeEager_1.default(schema);
             console.log({ actions });
             setValue({

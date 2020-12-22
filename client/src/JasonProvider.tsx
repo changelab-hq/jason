@@ -7,25 +7,53 @@ import { Provider } from 'react-redux'
 import { createEntityAdapter, createSlice, createReducer, configureStore } from '@reduxjs/toolkit'
 import createJasonReducers from './createJasonReducers'
 import createPayloadHandler from './createPayloadHandler'
+import createOptDis from './createOptDis'
 import makeEager from './makeEager'
 import { camelizeKeys } from 'humps'
 import md5 from 'blueimp-md5'
 import _ from 'lodash'
 import React, { useState, useEffect } from 'react'
+import { validate as isUuid } from 'uuid'
 
-const JasonProvider = ({ reducers, middleware, extraActions, children }) => {
+const JasonProvider = ({ reducers, middleware, extraActions, children }: { reducers?: any, middleware?: any, extraActions?: any, children?: React.FC }) => {
   const [store, setStore] = useState(null)
   const [value, setValue] = useState(null)
   const [connected, setConnected] = useState(false)
 
   const csrfToken = (document.querySelector("meta[name=csrf-token]") as any).content
   axios.defaults.headers.common['X-CSRF-Token'] = csrfToken
-  const restClient = applyCaseMiddleware(axios.create())
+  const restClient = applyCaseMiddleware(axios.create(), {
+    preservedKeys: (key) => {
+      return isUuid(key)
+    }
+  })
 
   useEffect(() => {
     restClient.get('/jason/api/schema')
     .then(({ data: snakey_schema }) => {
       const schema = camelizeKeys(snakey_schema)
+
+      const serverActionQueue = function() {
+        const queue: any[] = []
+        let inFlight = false
+
+        return {
+          addItem: (item) => queue.push(item),
+          getItem: () => {
+            if (inFlight) return false
+
+            const item = queue.shift()
+            if (item) {
+              inFlight = true
+              return item
+            }
+            return false
+          },
+          itemProcessed: () => inFlight = false,
+          fullySynced: () => queue.length === 0 && !inFlight,
+          getData: () => ({ queue, inFlight })
+        }
+      }()
 
       const consumer = createConsumer()
       const allReducers = {
@@ -67,7 +95,7 @@ const JasonProvider = ({ reducers, middleware, extraActions, children }) => {
         console.log('Subscribe with', config, md5Hash)
 
         _.map(config, (v, model) => {
-          payloadHandlers[`${model}:${md5Hash}`] = createPayloadHandler(store.dispatch, subscription, model, schema[model])
+          payloadHandlers[`${model}:${md5Hash}`] = createPayloadHandler(store.dispatch, serverActionQueue, subscription, model, schema[model])
         })
         subscription.send({ createSubscription: config })
 
@@ -81,8 +109,8 @@ const JasonProvider = ({ reducers, middleware, extraActions, children }) => {
           delete payloadHandlers[`${model}:${md5Hash}`]
         })
       }
-
-      const actions = createActions(schema, store, restClient, extraActions)
+      const optDis = createOptDis(schema, store.dispatch, restClient, serverActionQueue)
+      const actions = createActions(schema, store, restClient, optDis, extraActions)
       const eager = makeEager(schema)
 
       console.log({ actions })

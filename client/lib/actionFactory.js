@@ -23,7 +23,7 @@ exports.default = (dis, store, entity, { extraActions = {}, hasPriority = false 
     function remove(id) {
         return dis({ type: `${pluralize_1.default(entity)}/remove`, payload: id });
     }
-    const extraActionsResolved = lodash_1.default.mapValues(extraActions, v => v(dis, store, entity));
+    const extraActionsResolved = extraActions ? lodash_1.default.mapValues(extraActions, v => v(dis, store, entity)) : {};
     if (hasPriority) {
         return Object.assign({ add, upsert, setAll, remove, movePriority }, extraActionsResolved);
     }

@@ -7,17 +7,16 @@ module Jason::Publisher
 
     if self.persisted? && (scope.blank? || self.class.unscoped.send(scope).exists?(self.id))
       payload = self.reload.as_json(as_json_config)
-      $redis.hset("jason:#{self.class.name.underscore}:cache", self.id, payload.to_json)
+      $redis_jason.hset("jason:#{self.class.name.underscore}:cache", self.id, payload.to_json)
     else
-      $redis.hdel("jason:#{self.class.name.underscore}:cache", self.id)
+      $redis_jason.hdel("jason:#{self.class.name.underscore}:cache", self.id)
     end
   end
 
   def publish_json
     cache_json
     return if skip_publish_json
-    subscriptions = $redis.hgetall("jason:#{self.class.name.underscore}:subscriptions")
-    subscriptions.each do |id, config_json|
+    self.class.jason_subscriptions.each do |id, config_json|
       config = JSON.parse(config_json)
 
       if (config['conditions'] || {}).all? { |field, value| self.send(field) == value }
@@ -33,7 +32,11 @@ module Jason::Publisher
 
   class_methods do
     def subscriptions
-      $redis.hgetall("jason:#{self.name.underscore}:subscriptions")
+      $redis_jason.hgetall("jason:#{self.name.underscore}:subscriptions")
+    end
+
+    def jason_subscriptions
+      $redis_jason.hgetall("jason:#{self.name.underscore}:subscriptions")
     end
 
     def publish_all(instances)
@@ -45,7 +48,7 @@ module Jason::Publisher
     end
 
     def flush_cache
-      $redis.del("jason:#{self.name.underscore}:cache")
+      $redis_jason.del("jason:#{self.name.underscore}:cache")
     end
 
     def setup_json
@@ -68,6 +71,35 @@ module Jason::Publisher
           end
         }
       end
+    end
+
+    def find_or_create_by_id(params)
+      object = find_by(id: params[:id])
+
+      if object
+        object.update(params)
+      elsif params[:hidden]
+        return false ## If an object is passed with hidden = true but didn't already exist, it's safe to never create it
+      else
+        object = create!(params)
+      end
+
+      object
+    end
+
+    def find_or_create_by_id!(params)
+      object = find_by(id: params[:id])
+
+      if object
+        object.update!(params)
+      elsif params[:hidden]
+        ## TODO: We're diverging from semantics of the Rails bang! methods here, which would normally either raise or return an object. Find a way to make this better.
+        return false ## If an object is passed with hidden = true but didn't already exist, it's safe to never create it
+      else
+        object = create!(params)
+      end
+
+      object
     end
   end
 

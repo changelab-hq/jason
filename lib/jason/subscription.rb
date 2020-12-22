@@ -4,7 +4,7 @@ class Jason::Subscription
   def initialize(id: nil, config: nil)
     if id
       @id = id
-      raw_config = $redis.hgetall("jason:subscriptions:#{id}").map { |k,v| [k, JSON.parse(v)] }.to_h.with_indifferent_access
+      raw_config = $redis_jason.hgetall("jason:subscriptions:#{id}").map { |k,v| [k, JSON.parse(v)] }.to_h.with_indifferent_access
       set_config(raw_config)
     else
       @id = Digest::MD5.hexdigest(config.to_json)
@@ -18,30 +18,28 @@ class Jason::Subscription
 
   def configure(raw_config)
     set_config(raw_config)
-    $redis.hmset("jason:subscriptions:#{id}", *config.map { |k,v| [k, v.to_json]}.flatten)
+    $redis_jason.hmset("jason:subscriptions:#{id}", *config.map { |k,v| [k, v.to_json]}.flatten)
   end
 
   def destroy
     config.each do |model, value|
-      $redis.srem("jason:#{model.to_s.underscore}:subscriptions", id)
+      $redis_jason.srem("jason:#{model.to_s.underscore}:subscriptions", id)
     end
-    $redis.del("jason:subscriptions:#{id}")
+    $redis_jason.del("jason:subscriptions:#{id}")
   end
 
   def add_consumer(consumer_id)
     before_consumer_count = consumer_count
-    $redis.sadd("jason:subscriptions:#{id}:consumers", consumer_id)
-    $redis.hset("jason:consumers", consumer_id, Time.now.utc)
+    $redis_jason.sadd("jason:subscriptions:#{id}:consumers", consumer_id)
+    $redis_jason.hset("jason:consumers", consumer_id, Time.now.utc)
 
-    if before_consumer_count == 0
-      add_subscriptions
-      publish_all
-    end
+    add_subscriptions
+    publish_all
   end
 
   def remove_consumer(consumer_id)
-    $redis.srem("jason:subscriptions:#{id}:consumers", consumer_id)
-    $redis.hdel("jason:consumers", consumer_id)
+    $redis_jason.srem("jason:subscriptions:#{id}:consumers", consumer_id)
+    $redis_jason.hdel("jason:consumers", consumer_id)
 
     if consumer_count == 0
       remove_subscriptions
@@ -49,7 +47,7 @@ class Jason::Subscription
   end
 
   def consumer_count
-    $redis.scard("jason:subscriptions:#{id}:consumers")
+    $redis_jason.scard("jason:subscriptions:#{id}:consumers")
   end
 
   def channel
@@ -67,14 +65,14 @@ class Jason::Subscription
 
   def add_subscriptions
     config.each do |model, value|
-      $redis.hset("jason:#{model.to_s.underscore}:subscriptions", id, value.to_json)
+      $redis_jason.hset("jason:#{model.to_s.underscore}:subscriptions", id, value.to_json)
       update(model)
     end
   end
 
   def remove_subscriptions
     config.each do |model, _|
-      $redis.hdel("jason:#{model.to_s.underscore}:subscriptions", id)
+      $redis_jason.hdel("jason:#{model.to_s.underscore}:subscriptions", id)
     end
   end
 
@@ -86,8 +84,8 @@ class Jason::Subscription
   end
 
   def get(model)
-    value = JSON.parse($redis.get("#{channel}:#{model}:value") || '{}')
-    idx = $redis.get("#{channel}:#{model}:idx").to_i
+    value = JSON.parse($redis_jason.get("#{channel}:#{model}:value") || '[]')
+    idx = $redis_jason.get("#{channel}:#{model}:idx").to_i
 
     {
       type: 'payload',
@@ -113,7 +111,7 @@ class Jason::Subscription
   def get_throttle
     if !$throttle_rate || !$throttle_timeout || Time.now.utc > $throttle_timeout
       $throttle_timeout = Time.now.utc + 5.seconds
-      $throttle_rate = (Sidekiq.redis { |r| r.get 'global_throttle_rate' } || 0).to_i
+      $throttle_rate = ($redis_jason.get('global_throttle_rate') || 0).to_i
     else
       $throttle_rate
     end
@@ -124,15 +122,15 @@ class Jason::Subscription
     start_time = Time.now.utc
     conditions = config[model]['conditions']
 
-    value = $redis.hgetall("jason:#{model}:cache")
+    value = $redis_jason.hgetall("jason:#{model}:cache")
       .values.map { |v| JSON.parse(v) }
       .select { |v| (conditions || {}).all? { |field, value| v[field] == value } }
       .sort_by { |v| v['id'] }
 
     # lfsa = last finished, started at
     # If another job that started after this one, finished before this one, skip sending this state update
-    if Time.parse(Sidekiq.redis { |r| r.get("jason:#{channel}:lfsa") || '1970-01-01 00:00:00 UTC' } ) < start_time
-      Sidekiq.redis { |r| r.set("jason:#{channel}:lfsa", start_time) }
+    if Time.parse($redis_jason.get("jason:#{channel}:lfsa") || '1970-01-01 00:00:00 UTC') < start_time
+      $redis_jason.set("jason:#{channel}:lfsa", start_time)
     else
       return
     end
@@ -149,11 +147,11 @@ class Jason::Subscription
       end
     LUA
 
-    result = $redis.eval cmd, [], ["#{channel}:#{model}", value.to_json]
+    result = $redis_jason.eval cmd, [], ["#{channel}:#{model}", value.to_json]
     return if result.blank?
 
     idx = result[0]
-    old_value = JSON.parse(result[1] || '{}')
+    old_value = JSON.parse(result[1] || '[]')
     diff = get_diff(old_value, value)
 
     end_time = Time.now.utc
