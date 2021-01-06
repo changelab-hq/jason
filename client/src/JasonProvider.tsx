@@ -18,7 +18,6 @@ import _ from 'lodash'
 import React, { useState, useEffect } from 'react'
 import { validate as isUuid } from 'uuid'
 
-
 const JasonProvider = ({ reducers, middleware, extraActions, children }: { reducers?: any, middleware?: any, extraActions?: any, children?: React.FC }) => {
   const [store, setStore] = useState(null)
   const [value, setValue] = useState(null)

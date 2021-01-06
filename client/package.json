@@ -1,6 +1,6 @@
 {
   "name": "@jamesr2323/jason",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "module": "./lib/index.js",
   "types": "./lib/index.d.ts",
   "scripts": {

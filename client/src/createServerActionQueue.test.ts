@@ -1,5 +1,12 @@
 import createServerActionQueue from './createServerActionQueue'
 
+test('Adding items', () => {
+  const serverActionQueue = createServerActionQueue()
+  serverActionQueue.addItem({ type: 'entity/add', payload: { id: 'abc', attribute: 1 } })
+  const item = serverActionQueue.getItem()
+  expect(item).toStrictEqual({ type: 'entity/add', payload: { id: 'abc', attribute: 1 } })
+})
+
 test('Deduping of items that will overwrite each other', () => {
   const serverActionQueue = createServerActionQueue()
   serverActionQueue.addItem({ type: 'entity/upsert', payload: { id: 'abc', attribute: 1 } })

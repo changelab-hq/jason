@@ -13,8 +13,10 @@ function createServerActionQueue() {
         // In that case we can remove them
         // If this is an upsert && item ID is the same && current item attributes are a superset of the earlier item attributes
         const { type, payload } = item;
-        if (type.split('/')[1] !== 'upsert')
+        if (type.split('/')[1] !== 'upsert') {
+            queue.push(item);
             return;
+        }
         lodash_1.default.remove(queue, item => {
             const { type: itemType, payload: itemPayload } = item;
             if (type !== itemType)
