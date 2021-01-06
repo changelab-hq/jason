@@ -1,19 +1,23 @@
 import createActions from './createActions'
+import createJasonReducers from './createJasonReducers'
+import createPayloadHandler from './createPayloadHandler'
+import createOptDis from './createOptDis'
+import createServerActionQueue from './createServerActionQueue'
+
 import { createConsumer } from "@rails/actioncable"
 import JasonContext from './JasonContext'
 import axios from 'axios'
 import applyCaseMiddleware from 'axios-case-converter'
 import { Provider } from 'react-redux'
 import { createEntityAdapter, createSlice, createReducer, configureStore } from '@reduxjs/toolkit'
-import createJasonReducers from './createJasonReducers'
-import createPayloadHandler from './createPayloadHandler'
-import createOptDis from './createOptDis'
+
 import makeEager from './makeEager'
 import { camelizeKeys } from 'humps'
 import md5 from 'blueimp-md5'
 import _ from 'lodash'
 import React, { useState, useEffect } from 'react'
 import { validate as isUuid } from 'uuid'
+
 
 const JasonProvider = ({ reducers, middleware, extraActions, children }: { reducers?: any, middleware?: any, extraActions?: any, children?: React.FC }) => {
   const [store, setStore] = useState(null)
@@ -22,7 +26,7 @@ const JasonProvider = ({ reducers, middleware, extraActions, children }: { reduc
 
   const csrfToken = (document.querySelector("meta[name=csrf-token]") as any).content
   axios.defaults.headers.common['X-CSRF-Token'] = csrfToken
-  const restClient = applyCaseMiddleware(axios.create(), {
+  const restClient = applyCaseMiddleware(axios.create() as any, {
     preservedKeys: (key) => {
       return isUuid(key)
     }
@@ -33,27 +37,7 @@ const JasonProvider = ({ reducers, middleware, extraActions, children }: { reduc
     .then(({ data: snakey_schema }) => {
       const schema = camelizeKeys(snakey_schema)
 
-      const serverActionQueue = function() {
-        const queue: any[] = []
-        let inFlight = false
-
-        return {
-          addItem: (item) => queue.push(item),
-          getItem: () => {
-            if (inFlight) return false
-
-            const item = queue.shift()
-            if (item) {
-              inFlight = true
-              return item
-            }
-            return false
-          },
-          itemProcessed: () => inFlight = false,
-          fullySynced: () => queue.length === 0 && !inFlight,
-          getData: () => ({ queue, inFlight })
-        }
-      }()
+      const serverActionQueue = createServerActionQueue()
 
       const consumer = createConsumer()
       const allReducers = {

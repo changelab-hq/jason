@@ -23,15 +23,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const createActions_1 = __importDefault(require("./createActions"));
+const createJasonReducers_1 = __importDefault(require("./createJasonReducers"));
+const createPayloadHandler_1 = __importDefault(require("./createPayloadHandler"));
+const createOptDis_1 = __importDefault(require("./createOptDis"));
+const createServerActionQueue_1 = __importDefault(require("./createServerActionQueue"));
 const actioncable_1 = require("@rails/actioncable");
 const JasonContext_1 = __importDefault(require("./JasonContext"));
 const axios_1 = __importDefault(require("axios"));
 const axios_case_converter_1 = __importDefault(require("axios-case-converter"));
 const react_redux_1 = require("react-redux");
 const toolkit_1 = require("@reduxjs/toolkit");
-const createJasonReducers_1 = __importDefault(require("./createJasonReducers"));
-const createPayloadHandler_1 = __importDefault(require("./createPayloadHandler"));
-const createOptDis_1 = __importDefault(require("./createOptDis"));
 const makeEager_1 = __importDefault(require("./makeEager"));
 const humps_1 = require("humps");
 const blueimp_md5_1 = __importDefault(require("blueimp-md5"));
@@ -53,26 +54,7 @@ const JasonProvider = ({ reducers, middleware, extraActions, children }) => {
         restClient.get('/jason/api/schema')
             .then(({ data: snakey_schema }) => {
             const schema = humps_1.camelizeKeys(snakey_schema);
-            const serverActionQueue = function () {
-                const queue = [];
-                let inFlight = false;
-                return {
-                    addItem: (item) => queue.push(item),
-                    getItem: () => {
-                        if (inFlight)
-                            return false;
-                        const item = queue.shift();
-                        if (item) {
-                            inFlight = true;
-                            return item;
-                        }
-                        return false;
-                    },
-                    itemProcessed: () => inFlight = false,
-                    fullySynced: () => queue.length === 0 && !inFlight,
-                    getData: () => ({ queue, inFlight })
-                };
-            }();
+            const serverActionQueue = createServerActionQueue_1.default();
             const consumer = actioncable_1.createConsumer();
             const allReducers = Object.assign(Object.assign({}, reducers), createJasonReducers_1.default(schema));
             console.log({ schema, allReducers });
