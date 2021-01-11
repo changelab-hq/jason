@@ -1,4 +1,4 @@
-class Jason::Subscription
+class Jason::SubscriptionOld
   attr_accessor :id, :config
 
   def initialize(id: nil, config: nil)
@@ -12,95 +12,20 @@ class Jason::Subscription
     end
   end
 
-  def self.upsert_by_config(model, conditions: {}, includes: {})
-    self.new(config: {
-      model: model,
-      conditions: conditions,
-      includes: includes
-    }.compact)
-  end
-
-  def self.find_by_id(id)
-    self.new(id: id)
-  end
-
-  def self.for_instance(model, id)
-    $redis_jason.smembers("jason:models:#{model}:#{id}:subscriptions") + $redis_jason.smembers("jason:models:#{model}:all:subscriptions")
-  end
-
   def set_config(raw_config)
-    @config =  raw_config.with_indifferent_access
-  end
-
-  # Set the instance IDs for the subscription
-  # Add an entry to the subscription list for each instance
-  def set_ids(model = nil)
-    if conditions.blank?
-      $redis_jason.sadd("jason:models:#{model}:all:subscriptions", id)
-      return
-    end
-
-    ids = model_klass.where(conditions).pluck(:id)
-    return if ids.blank?
-
-    $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model}", ids)
-    ids.each do |instance_id|
-      $redis_jason.sadd("jason:models:#{model}:#{instance_id}:subscriptions", id)
-    end
-
-    # TODO: Recursively parse the includes tree.
-    if includes.is_a?(Hash)
-      includes.keys.
-    elsif includes.is_a?(Array)
-
-    elsif includes.is_a?(String)
-
-    end
-  end
-
-
-
-  def clear_ids
-    if conditions.blank?
-      $redis_jason.srem("jason:models:#{model}:all:subscriptions", id)
-    end
-
-    ids = $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model}")
-    ids.each do |instance_id|
-      $redis_jason.srem("jason:models:#{model}:#{instance_id}:subscriptions", id)
-    end
-    $redis_jason.del("jason:subscriptions:#{id}:ids:#{model}")
-  end
-
-  def ids(model_name)
-    $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model}")
-  end
-
-  def model
-    @config['model']
-  end
-
-
-
-  def model_klass
-    model.to_s.classify.constantize
-  end
-
-  def conditions
-    @config['conditions']
-  end
-
-  def includes
-    @config['includes']
+    @config =  raw_config.with_indifferent_access.map { |k,v| [k.underscore.to_s, v] }.to_h
   end
 
   def configure(raw_config)
     set_config(raw_config)
-    $redis_jason.hmset("jason:subscriptions:#{id}", *config.map { |k,v| [k, v.to_json] }.flatten)
+    $redis_jason.hmset("jason:subscriptions:#{id}", *config.map { |k,v| [k, v.to_json]}.flatten)
   end
 
   def destroy
-    raise
+    config.each do |model, value|
+      $redis_jason.srem("jason:#{model.to_s.underscore}:subscriptions", id)
+    end
+    $redis_jason.del("jason:subscriptions:#{id}")
   end
 
   def add_consumer(consumer_id)
@@ -108,9 +33,8 @@ class Jason::Subscription
     $redis_jason.sadd("jason:subscriptions:#{id}:consumers", consumer_id)
     $redis_jason.hset("jason:consumers", consumer_id, Time.now.utc)
 
-    if before_consumer_count == 0
-      set_ids
-    end
+    add_subscriptions
+    publish_all
   end
 
   def remove_consumer(consumer_id)
@@ -118,7 +42,7 @@ class Jason::Subscription
     $redis_jason.hdel("jason:consumers", consumer_id)
 
     if consumer_count == 0
-      clear_ids
+      remove_subscriptions
     end
   end
 

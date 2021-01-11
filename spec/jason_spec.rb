@@ -3,7 +3,10 @@ RSpec.describe Jason do
     expect(Jason::VERSION).not_to be nil
   end
 
-  it "does something useful" do
-    expect(false).to eq(true)
+  it "can be configured" do
+    Jason.setup do |config|
+      config.schema = { posts: { subscribed_fields: [:name] } }
+    end
+    expect(Jason.schema).to eq({ posts: { subscribed_fields: [:name] } })
   end
 end

@@ -1,14 +1,28 @@
-require "bundler/setup"
+# Configure spec_helper.rb
+ENV["RAILS_ENV"] = "test"
+require File.expand_path("../dummy/config/environment.rb",  __FILE__)
+require 'rspec/rails'
 require "jason"
 
+ENGINE_RAILS_ROOT=File.join(File.dirname(__FILE__), '../')
+
+# Requires supporting ruby files with custom matchers and macros, etc,
+# in spec/support/ and its subdirectories.
+Dir[File.join(ENGINE_RAILS_ROOT, "spec/support/**/*.rb")].each {|f| require f }
+
 RSpec.configure do |config|
-  # Enable flags like --only-failures and --next-failure
-  config.example_status_persistence_file_path = ".rspec_status"
+  config.use_transactional_fixtures = true
 
-  # Disable RSpec exposing methods globally on `Module` and `main`
-  config.disable_monkey_patching!
+  # Use color not only in STDOUT but also in pagers and files
+  config.tty = true
 
-  config.expect_with :rspec do |c|
-    c.syntax = :expect
+  # Use the specified formatter
+  config.formatter = :documentation # :progress, :html, :textmate
+
+  config.before(:each) do
+    $redis_jason.flushdb
+  end
+  config.after(:each) do
+
   end
 end

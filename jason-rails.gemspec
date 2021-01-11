@@ -27,4 +27,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "connection_pool", ">= 2.2.3"
   spec.add_dependency "redis", ">= 4"
   spec.add_dependency "jsondiff"
+
+  spec.add_development_dependency "rspec-rails"
+  spec.add_development_dependency "sqlite3"
 end
