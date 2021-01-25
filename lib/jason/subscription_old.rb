@@ -83,7 +83,9 @@ class Jason::SubscriptionOld
     end
   end
 
-  def get(model)
+  def get(model_name)
+    LuaGenerator.new.index_hash_by_set("jason:cache:#{model_name}", "")
+
     value = JSON.parse($redis_jason.get("#{channel}:#{model}:value") || '[]')
     idx = $redis_jason.get("#{channel}:#{model}:idx").to_i
 

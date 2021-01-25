@@ -8,7 +8,7 @@ class Jason::ApiModel
 
   def initialize(name)
     @name = name
-    @model = OpenStruct.new(JASON_API_MODEL[name.to_sym])
+    @model = OpenStruct.new(Jason.schema[name.to_sym])
   end
 
   def allowed_params
@@ -17,10 +17,6 @@ class Jason::ApiModel
 
   def allowed_object_params
     model.allowed_object_params || []
-  end
-
-  def include_models
-    model.include_models || []
   end
 
   def include_methods
@@ -52,12 +48,6 @@ class Jason::ApiModel
   end
 
   def as_json_config
-    include_configs = include_models.map do |assoc|
-      reflection = name.classify.constantize.reflect_on_association(assoc.to_sym)
-      api_model = Jason::ApiModel.new(reflection.klass.name.underscore)
-      { assoc => { only: api_model.subscribed_fields, methods: api_model.include_methods } }
-    end
-
-    { only: subscribed_fields, include: include_configs, methods: include_methods }
+    { only: subscribed_fields, methods: include_methods }
   end
 end

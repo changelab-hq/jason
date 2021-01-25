@@ -9,10 +9,8 @@ function diffSeconds(dt2, dt1) {
   return Math.abs(Math.round(diff))
 }
 
-export default function createPayloadHandler(dispatch, serverActionQueue, subscription, model, config) {
+export default function createPayloadHandler(dispatch, serverActionQueue, subscription, model, config, subscriptionId) {
   console.log({ model, config })
-  let payload = [] as any[]
-  let previousPayload = [] as any[]
   let idx = 0
   let patchQueue = {}
 
@@ -22,7 +20,7 @@ export default function createPayloadHandler(dispatch, serverActionQueue, subscr
 
   function getPayload() {
     console.log({ getPayload: model, subscription })
-    subscription.send({ getPayload: { model, config } })
+    setTimeout(() => subscription.send({ getPayload: { model, config } }), 1000)
   }
 
   function camelizeKeys(item) {
@@ -31,44 +29,30 @@ export default function createPayloadHandler(dispatch, serverActionQueue, subscr
 
   const tGetPayload = _.throttle(getPayload, 10000)
 
-  function dispatchPayload() {
-    // We want to avoid updates from server overwriting changes to local state, so if there is a queue then wait.
-    if (!serverActionQueue.fullySynced()) {
-      console.log(serverActionQueue.getData())
-      setTimeout(dispatchPayload, 100)
-      return
-    }
-
-    const includeModels = (config.includeModels || []).map(m => _.camelCase(m))
-
-    console.log("Dispatching", { payload, includeModels })
-
-    includeModels.forEach(m => {
-      const subPayload = _.flatten(_.compact(camelizeKeys(payload).map(instance => instance[m])))
-      const previousSubPayload = _.flatten(_.compact(camelizeKeys(previousPayload).map(instance => instance[m])))
-
-      // Find IDs that were in the payload but are no longer
-      const idsToRemove = _.difference(previousSubPayload.map(i => i.id), subPayload.map(i => i.id))
-
-      dispatch({ type: `${pluralize(m)}/upsertMany`, payload: subPayload })
-      dispatch({ type: `${pluralize(m)}/removeMany`, payload: idsToRemove })
-    })
-
-    const idsToRemove = _.difference(previousPayload.map(i => i.id), payload.map(i => i.id))
-
-    dispatch({ type: `${pluralize(model)}/upsertMany`, payload: camelizeKeys(payload) })
-    dispatch({ type: `${pluralize(model)}/removeMany`, payload: idsToRemove })
-    previousPayload = payload
-  }
-
   function processQueue() {
-    console.log({ idx, patchQueue })
     lastCheckAt = new Date()
     if (patchQueue[idx]) {
-      payload = apply_patch(payload, patchQueue[idx])
-      if (patchQueue[idx]) {
-        dispatchPayload()
+      if (!serverActionQueue.fullySynced()) {
+        console.log(serverActionQueue.getData())
+        setTimeout(processQueue, 100)
+        return
       }
+
+      const { payload, destroy, id, type } = patchQueue[idx]
+
+      if (type === 'payload') {
+        dispatch({ type: `${pluralize(model)}/upsertMany`, payload })
+        const ids = payload.map(instance => instance.id)
+        dispatch({ type: `jasonModels/setSubscriptionIds`, payload: { model, subscriptionId, ids }})
+      } else if (destroy) {
+        dispatch({ type: `${pluralize(model)}/remove`, payload: id })
+        dispatch({ type: `jasonModels/removeSubscriptionId`, payload: { model, subscriptionId, id }})
+      } else {
+        console.log({ payload })
+        dispatch({ type: `${pluralize(model)}/upsert`, payload })
+        dispatch({ type: `jasonModels/addSubscriptionId`, payload: { model, subscriptionId, id }})
+      }
+
       delete patchQueue[idx]
       idx++
       updateDeadline = null
@@ -88,22 +72,15 @@ export default function createPayloadHandler(dispatch, serverActionQueue, subscr
   }
 
   function handlePayload(data) {
-    const { value, idx: newIdx, diff, latency, type } = data
-    console.log({ data })
+    const { instances, idx: newIdx, diff, type } = data
 
     if (type === 'payload') {
-      if (!value) return null;
-
-      payload = value
-      dispatchPayload()
-      idx = newIdx + 1
+      idx = newIdx
       // Clear any old changes left in the queue
       patchQueue= _.pick(patchQueue, _.keys(patchQueue).filter(k => k > newIdx + 1))
-      return
     }
 
-    patchQueue[newIdx] = diff
-
+    patchQueue[newIdx] = camelizeKeys(data)
     processQueue()
 
     if (diffSeconds((new Date()), lastCheckAt) >= 3) {
@@ -112,6 +89,8 @@ export default function createPayloadHandler(dispatch, serverActionQueue, subscr
       tGetPayload()
     }
   }
+
+  tGetPayload()
 
   return handlePayload
 }

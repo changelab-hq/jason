@@ -24,66 +24,247 @@ class Jason::Subscription
     self.new(id: id)
   end
 
-  def self.for_instance(model, id)
-    $redis_jason.smembers("jason:models:#{model}:#{id}:subscriptions") + $redis_jason.smembers("jason:models:#{model}:all:subscriptions")
+  def self.for_instance(model_name, id, include_all = true)
+    subs = $redis_jason.smembers("jason:models:#{model_name}:#{id}:subscriptions")
+    if include_all
+      subs += $redis_jason.smembers("jason:models:#{model_name}:all:subscriptions")
+    end
+
+    subs
+  end
+
+  def self.for_model(model_name)
+
+  end
+
+  # Find and update subscriptions affected by a model changing foreign key
+  # comment, comment_id, post, old_post_id, new_post_id
+  def self.update_ids(model_name, id, parent_model_name, old_foreign_id, new_foreign_id)
+    # Check if this change means it needs to be removed
+    # First find subscriptions that reference this model
+
+    if old_foreign_id
+      old_model_subscriptions = for_instance(parent_model_name, old_foreign_id, false)
+      new_model_subscriptions = for_instance(parent_model_name, new_foreign_id, false)
+    else
+      # If this is a new instance, we need to include _all_ subscriptions
+      old_model_subscriptions = []
+      new_model_subscriptions = for_instance(parent_model_name, new_foreign_id, true)
+    end
+
+    # To add
+    (new_model_subscriptions - old_model_subscriptions).each do |sub_id|
+      # add the current ID to the subscription, then add the tree below it
+      find_by_id(sub_id).set_id(model_name, id)
+    end
+
+    # To remove
+    (old_model_subscriptions - new_model_subscriptions).each do |sub_id|
+      find_by_id(sub_id).remove_ids(model_name, [id])
+    end
+
+    # TODO changes to sub models - e.g. post -> comment -> user
+  end
+
+  def self.remove_ids(model_name, ids)
+    ids.each do |instance_id|
+      for_instance(model_name, instance_id, false).each do |sub_id|
+        find_by_id(sub_id).remove_ids(model_name, [instance_id])
+      end
+    end
+  end
+
+  # Add ID to any _all_ subscriptions
+  def self.add_id(model_name, id)
+
+  end
+
+  def self.all
+    $redis_jason.keys('jason:subscriptions:*')
   end
 
   def set_config(raw_config)
     @config =  raw_config.with_indifferent_access
   end
 
+  # E.g. add comment#123, and then sub models
+  def set_id(model_name, id)
+    commit_ids(model_name, [id])
+    assoc_name = get_assoc_name(model_name)
+    set_ids_for_sub_models(assoc_name, [id])
+  end
+
+  def clear_id(model_name, id, parent_model_name)
+    remove_ids(model_name, [id])
+  end
+
   # Set the instance IDs for the subscription
   # Add an entry to the subscription list for each instance
-  def set_ids(model = nil)
-    if conditions.blank?
-      $redis_jason.sadd("jason:models:#{model}:all:subscriptions", id)
+  def set_ids(assoc_name = model, referrer_model_name = nil, referrer_ids = nil, enforce: false)
+    model_name = assoc_name.to_s.singularize
+
+    if referrer_model_name.blank? && conditions.blank?
+      $redis_jason.sadd("jason:models:#{model_name}:all:subscriptions", id)
       return
     end
 
-    ids = model_klass.where(conditions).pluck(:id)
+    if referrer_model_name.blank?
+      ids = model_klass(model_name).where(conditions).pluck(:id)
+    else
+      assoc = model_klass(referrer_model_name).reflect_on_association(assoc_name.to_sym)
+
+      if assoc.is_a?(ActiveRecord::Reflection::HasManyReflection)
+        ids = model_klass(model_name).where(assoc.foreign_key => referrer_ids).pluck(:id)
+      elsif assoc.is_a?(ActiveRecord::Reflection::BelongsToReflection)
+        ids = model_klass(referrer_model_name).where(id: referrer_ids).pluck(assoc.foreign_key)
+      end
+    end
     return if ids.blank?
 
-    $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model}", ids)
+    enforce ? enforce_ids(model_name, ids) : commit_ids(model_name, ids)
+    set_ids_for_sub_models(assoc_name, ids, enforce: enforce)
+  end
+
+  def refresh_ids(assoc_name = model, referrer_model_name = nil, referrer_ids)
+
+  end
+
+  # Add IDs that aren't present
+  def commit_ids(model_name, ids)
+    $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", ids)
     ids.each do |instance_id|
-      $redis_jason.sadd("jason:models:#{model}:#{instance_id}:subscriptions", id)
-    end
-
-    # TODO: Recursively parse the includes tree.
-    if includes.is_a?(Hash)
-      includes.keys.
-    elsif includes.is_a?(Array)
-
-    elsif includes.is_a?(String)
-
+      $redis_jason.sadd("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
     end
   end
 
+  # Ensure IDs are _only_ the ones passed
+  def enforce_ids(model_name, ids)
+    old_ids = $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model_name}")
 
+    # Remove
+    $redis_jason.srem("jason:subscriptions:#{id}:ids:#{model_name}", (old_ids - ids))
 
-  def clear_ids
-    if conditions.blank?
-      $redis_jason.srem("jason:models:#{model}:all:subscriptions", id)
+    (old_ids - ids).each do |instance_id|
+      $redis_jason.srem("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
     end
 
-    ids = $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model}")
-    ids.each do |instance_id|
-      $redis_jason.srem("jason:models:#{model}:#{instance_id}:subscriptions", id)
+    # Add
+    $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", (ids - old_ids))
+
+    (ids - old_ids).each do |instance_id|
+      $redis_jason.sadd("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
     end
-    $redis_jason.del("jason:subscriptions:#{id}:ids:#{model}")
   end
 
-  def ids(model_name)
-    $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model}")
+  def remove_ids(model_name, ids)
+    $redis_jason.srem("jason:subscriptions:#{id}:ids:#{model_name}", ids)
+    ids.each do |instance_id|
+      $redis_jason.srem("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
+    end
+  end
+
+  # 'posts', [post#1, post#2,...]
+  def set_ids_for_sub_models(assoc_name, ids, enforce: false)
+    model_name = assoc_name.to_s.singularize
+    # Limitation: Same association can't appear twice
+    includes_tree = get_tree_for(assoc_name)
+
+    if includes_tree.is_a?(Hash)
+      includes_tree.each do |assoc_name, includes_tree|
+        set_ids(assoc_name, model_name, ids, enforce: enforce)
+      end
+    # [:likes, :user]
+    elsif includes_tree.is_a?(Array)
+      includes_tree.each do |assoc_name|
+        set_ids(assoc_name, model_name, ids, enforce: enforce)
+      end
+    elsif includes_tree.is_a?(String)
+      set_ids(includes_tree, model_name, ids, enforce: enforce)
+    end
+  end
+
+  # assoc could be plural or not, so need to scan both.
+  def get_assoc_name(model_name, haystack = includes)
+    return model_name if model_name == model
+
+    if haystack.is_a?(Hash)
+      haystack.each do |assoc_name, includes_tree|
+        if model_name.pluralize == assoc_name.to_s.pluralize
+          return assoc_name
+        else
+          found_assoc = get_assoc_name(model_name, includes_tree)
+          return found_assoc if found_assoc
+        end
+      end
+    elsif haystack.is_a?(Array)
+      haystack.each do |assoc_name|
+        if model_name.pluralize == assoc_name.to_s.pluralize
+          return assoc_name
+        end
+      end
+    else
+      if model_name.pluralize == haystack.to_s.pluralize
+        return haystack
+      end
+    end
+
+    return nil
+  end
+
+  def get_tree_for(needle, assoc_name = nil, haystack = includes)
+    return includes if needle == model
+    return haystack if needle.to_s == assoc_name.to_s
+
+    if haystack.is_a?(Hash)
+      haystack.each do |assoc_name, includes_tree|
+        found_haystack = get_tree_for(needle, assoc_name, includes_tree)
+        return found_haystack if found_haystack
+      end
+    end
+
+    return nil
+  end
+
+  def clear_all_ids(assoc_name = model)
+    model_name = assoc_name.to_s.singularize
+    includes_tree = model_name == model ? includes : get_tree_for(assoc_name)
+
+    if model_name == model && conditions.blank?
+      $redis_jason.srem("jason:models:#{model_name}:all:subscriptions", id)
+    end
+
+    ids = $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model_name}")
+    ids.each do |instance_id|
+      $redis_jason.srem("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
+    end
+    $redis_jason.del("jason:subscriptions:#{id}:ids:#{model_name}")
+
+    # Recursively clear IDs
+    # { comments: [:like] }
+    if includes_tree.is_a?(Hash)
+      includes_tree.each do |assoc_name, includes_tree|
+        clear_all_ids(assoc_name)
+      end
+    # [:likes, :user]
+    elsif includes_tree.is_a?(Array)
+      includes_tree.each do |assoc_name|
+        clear_all_ids(assoc_name)
+      end
+    elsif includes_tree.is_a?(String)
+      clear_all_ids(includes_tree)
+    end
+  end
+
+  def ids(model_name = model)
+    $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model_name}")
   end
 
   def model
     @config['model']
   end
 
-
-
-  def model_klass
-    model.to_s.classify.constantize
+  def model_klass(model_name)
+    model_name.to_s.classify.constantize
   end
 
   def conditions
@@ -118,7 +299,7 @@ class Jason::Subscription
     $redis_jason.hdel("jason:consumers", consumer_id)
 
     if consumer_count == 0
-      clear_ids
+      clear_all_ids
     end
   end
 
@@ -130,114 +311,49 @@ class Jason::Subscription
     "jason:#{id}"
   end
 
-  def publish_all
-    config.each do |model, model_config|
-      klass = model.to_s.classify.constantize
-      conditions = model_config['conditions'] || {}
-      klass.where(conditions).find_each(&:cache_json)
-      update(model)
+  def get(model_name)
+    instance_jsons, idx = Jason::LuaGenerator.new.get_payload(model_name, id)
+    return if instance_jsons.blank?
+
+    payload = instance_jsons.map do |instance_json|
+      instance_json ? JSON.parse(instance_json) : {}
     end
-  end
-
-  def add_subscriptions
-    config.each do |model, value|
-      $redis_jason.hset("jason:#{model.to_s.underscore}:subscriptions", id, value.to_json)
-      update(model)
-    end
-  end
-
-  def remove_subscriptions
-    config.each do |model, _|
-      $redis_jason.hdel("jason:#{model.to_s.underscore}:subscriptions", id)
-    end
-  end
-
-  def self.publish_all
-    JASON_API_MODEL.each do |model, _v|
-      klass = model.to_s.classify.constantize
-      klass.publish_all(klass.all) if klass.respond_to?(:publish_all)
-    end
-  end
-
-  def get(model)
-    value = JSON.parse($redis_jason.get("#{channel}:#{model}:value") || '[]')
-    idx = $redis_jason.get("#{channel}:#{model}:idx").to_i
-
-    {
-      type: 'payload',
-      md5Hash: id,
-      model: model,
-      value: value,
-      idx: idx
-    }
-  end
-
-  def get_diff(old_value, value)
-    JsonDiff.generate(old_value, value)
-  end
-
-  def deep_stringify(value)
-    if value.is_a?(Hash)
-      value.deep_stringify_keys
-    elsif value.is_a?(Array)
-      value.map { |x| x.deep_stringify_keys }
-    end
-  end
-
-  def get_throttle
-    if !$throttle_rate || !$throttle_timeout || Time.now.utc > $throttle_timeout
-      $throttle_timeout = Time.now.utc + 5.seconds
-      $throttle_rate = ($redis_jason.get('global_throttle_rate') || 0).to_i
-    else
-      $throttle_rate
-    end
-  end
-
-  # Atomically update and return patch
-  def update(model)
-    start_time = Time.now.utc
-    conditions = config[model]['conditions']
-
-    value = $redis_jason.hgetall("jason:#{model}:cache")
-      .values.map { |v| JSON.parse(v) }
-      .select { |v| (conditions || {}).all? { |field, value| v[field] == value } }
-      .sort_by { |v| v['id'] }
-
-    # lfsa = last finished, started at
-    # If another job that started after this one, finished before this one, skip sending this state update
-    if Time.parse($redis_jason.get("jason:#{channel}:lfsa") || '1970-01-01 00:00:00 UTC') < start_time
-      $redis_jason.set("jason:#{channel}:lfsa", start_time)
-    else
-      return
-    end
-
-    value = deep_stringify(value)
-
-    # If value has changed, return old value and new idx. Otherwise do nothing.
-    cmd = <<~LUA
-      local old_val=redis.call('get', ARGV[1] .. ':value')
-      if old_val ~= ARGV[2] then
-        redis.call('set', ARGV[1] .. ':value', ARGV[2])
-        local new_idx = redis.call('incr', ARGV[1] .. ':idx')
-        return { new_idx, old_val }
-      end
-    LUA
-
-    result = $redis_jason.eval cmd, [], ["#{channel}:#{model}", value.to_json]
-    return if result.blank?
-
-    idx = result[0]
-    old_value = JSON.parse(result[1] || '[]')
-    diff = get_diff(old_value, value)
-
-    end_time = Time.now.utc
 
     payload = {
-      model: model,
+      type: 'payload',
+      model: model_name,
+      payload: payload,
       md5Hash: id,
-      diff: diff,
-      idx: idx.to_i,
-      latency: ((end_time - start_time)*1000).round
+      idx: idx.to_i
+    }
+
+    ActionCable.server.broadcast("jason:#{id}", payload)
+  end
+
+  def update(model_name, instance_id, payload, gidx)
+    idx = Jason::LuaGenerator.new.get_subscription(model_name, instance_id, id, gidx)
+    return if idx.blank?
+
+    payload = {
+      id: instance_id,
+      model: model_name,
+      payload: payload,
+      md5Hash: id,
+      idx: idx.to_i
+    }
+
+    ActionCable.server.broadcast("jason:#{id}", payload)
+  end
+
+  def destroy(model_name, instance_id)
+    idx = $redis_jason.incr("jason:subscription:#{id}:idx")
+
+    payload = {
+      id: instance_id,
+      model: model_name,
+      destroy: true,
+      md5Hash: id,
+      idx: idx.to_i
     }
 
     ActionCable.server.broadcast("jason:#{id}", payload)

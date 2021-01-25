@@ -6,8 +6,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const toolkit_1 = require("@reduxjs/toolkit");
 const pluralize_1 = __importDefault(require("pluralize"));
 const lodash_1 = __importDefault(require("lodash"));
-function generateSlices(schema) {
-    const sliceNames = schema.map(k => pluralize_1.default(k));
+function generateSlices(models) {
+    const sliceNames = models.map(k => pluralize_1.default(k));
     const adapter = toolkit_1.createEntityAdapter();
     return lodash_1.default.fromPairs(lodash_1.default.map(sliceNames, name => {
         return [name, toolkit_1.createSlice({
@@ -31,7 +31,46 @@ function generateSlices(schema) {
             }).reducer];
     }));
 }
+function generateJasonSlices(models) {
+    const initialState = lodash_1.default.fromPairs(lodash_1.default.map(models, (model_name) => {
+        return [model_name, {}];
+    }));
+    const modelSliceReducer = toolkit_1.createSlice({
+        name: 'jasonModels',
+        initialState,
+        reducers: {
+            setSubscriptionIds(s, a) {
+                const { payload } = a;
+                const { subscriptionId, model, ids } = payload;
+                console.log({ s });
+                s[model][subscriptionId] = ids;
+            },
+            addSubscriptionId(s, a) {
+                const { payload } = a;
+                const { subscriptionId, model, id } = payload;
+                s[model][subscriptionId] = lodash_1.default.union(s[model][subscriptionId] || [], [id]);
+            },
+            removeSubscriptionId(s, a) {
+                const { payload } = a;
+                const { subscriptionId, model, id } = payload;
+                s[model][subscriptionId] = lodash_1.default.remove(s[model][subscriptionId] || [], id);
+            }
+        }
+    }).reducer;
+    const jasonSliceReducer = toolkit_1.createSlice({
+        name: 'jason',
+        initialState: {
+            connected: false,
+            queueSize: 0
+        },
+        reducers: {
+            upsert: (s, a) => (Object.assign(Object.assign({}, s), a.payload))
+        }
+    }).reducer;
+    return { jason: jasonSliceReducer, jasonModels: modelSliceReducer };
+}
 function createJasonReducers(schema) {
-    return generateSlices(lodash_1.default.keys(schema));
+    const models = lodash_1.default.keys(schema);
+    return Object.assign(Object.assign({}, generateSlices(models)), generateJasonSlices(models));
 }
 exports.default = createJasonReducers;

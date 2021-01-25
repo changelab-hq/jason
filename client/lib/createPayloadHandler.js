@@ -3,7 +3,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const jsonpatch_1 = require("jsonpatch");
 const deepCamelizeKeys_1 = __importDefault(require("./deepCamelizeKeys"));
 const pluralize_1 = __importDefault(require("pluralize"));
 const lodash_1 = __importDefault(require("lodash"));
@@ -12,10 +11,8 @@ function diffSeconds(dt2, dt1) {
     var diff = (dt2.getTime() - dt1.getTime()) / 1000;
     return Math.abs(Math.round(diff));
 }
-function createPayloadHandler(dispatch, serverActionQueue, subscription, model, config) {
+function createPayloadHandler(dispatch, serverActionQueue, subscription, model, config, subscriptionId) {
     console.log({ model, config });
-    let payload = [];
-    let previousPayload = [];
     let idx = 0;
     let patchQueue = {};
     let lastCheckAt = new Date();
@@ -23,41 +20,34 @@ function createPayloadHandler(dispatch, serverActionQueue, subscription, model, 
     let checkInterval;
     function getPayload() {
         console.log({ getPayload: model, subscription });
-        subscription.send({ getPayload: { model, config } });
+        setTimeout(() => subscription.send({ getPayload: { model, config } }), 1000);
     }
     function camelizeKeys(item) {
         return deepCamelizeKeys_1.default(item, key => uuid_1.validate(key));
     }
     const tGetPayload = lodash_1.default.throttle(getPayload, 10000);
-    function dispatchPayload() {
-        // We want to avoid updates from server overwriting changes to local state, so if there is a queue then wait.
-        if (!serverActionQueue.fullySynced()) {
-            console.log(serverActionQueue.getData());
-            setTimeout(dispatchPayload, 100);
-            return;
-        }
-        const includeModels = (config.includeModels || []).map(m => lodash_1.default.camelCase(m));
-        console.log("Dispatching", { payload, includeModels });
-        includeModels.forEach(m => {
-            const subPayload = lodash_1.default.flatten(lodash_1.default.compact(camelizeKeys(payload).map(instance => instance[m])));
-            const previousSubPayload = lodash_1.default.flatten(lodash_1.default.compact(camelizeKeys(previousPayload).map(instance => instance[m])));
-            // Find IDs that were in the payload but are no longer
-            const idsToRemove = lodash_1.default.difference(previousSubPayload.map(i => i.id), subPayload.map(i => i.id));
-            dispatch({ type: `${pluralize_1.default(m)}/upsertMany`, payload: subPayload });
-            dispatch({ type: `${pluralize_1.default(m)}/removeMany`, payload: idsToRemove });
-        });
-        const idsToRemove = lodash_1.default.difference(previousPayload.map(i => i.id), payload.map(i => i.id));
-        dispatch({ type: `${pluralize_1.default(model)}/upsertMany`, payload: camelizeKeys(payload) });
-        dispatch({ type: `${pluralize_1.default(model)}/removeMany`, payload: idsToRemove });
-        previousPayload = payload;
-    }
     function processQueue() {
-        console.log({ idx, patchQueue });
         lastCheckAt = new Date();
         if (patchQueue[idx]) {
-            payload = jsonpatch_1.apply_patch(payload, patchQueue[idx]);
-            if (patchQueue[idx]) {
-                dispatchPayload();
+            if (!serverActionQueue.fullySynced()) {
+                console.log(serverActionQueue.getData());
+                setTimeout(processQueue, 100);
+                return;
+            }
+            const { payload, destroy, id, type } = patchQueue[idx];
+            if (type === 'payload') {
+                dispatch({ type: `${pluralize_1.default(model)}/upsertMany`, payload });
+                const ids = payload.map(instance => instance.id);
+                dispatch({ type: `jasonModels/setSubscriptionIds`, payload: { model, subscriptionId, ids } });
+            }
+            else if (destroy) {
+                dispatch({ type: `${pluralize_1.default(model)}/remove`, payload: id });
+                dispatch({ type: `jasonModels/removeSubscriptionId`, payload: { model, subscriptionId, id } });
+            }
+            else {
+                console.log({ payload });
+                dispatch({ type: `${pluralize_1.default(model)}/upsert`, payload });
+                dispatch({ type: `jasonModels/addSubscriptionId`, payload: { model, subscriptionId, id } });
             }
             delete patchQueue[idx];
             idx++;
@@ -79,19 +69,13 @@ function createPayloadHandler(dispatch, serverActionQueue, subscription, model, 
         }
     }
     function handlePayload(data) {
-        const { value, idx: newIdx, diff, latency, type } = data;
-        console.log({ data });
+        const { instances, idx: newIdx, diff, type } = data;
         if (type === 'payload') {
-            if (!value)
-                return null;
-            payload = value;
-            dispatchPayload();
-            idx = newIdx + 1;
+            idx = newIdx;
             // Clear any old changes left in the queue
             patchQueue = lodash_1.default.pick(patchQueue, lodash_1.default.keys(patchQueue).filter(k => k > newIdx + 1));
-            return;
         }
-        patchQueue[newIdx] = diff;
+        patchQueue[newIdx] = camelizeKeys(data);
         processQueue();
         if (diffSeconds((new Date()), lastCheckAt) >= 3) {
             lastCheckAt = new Date();
@@ -99,6 +83,7 @@ function createPayloadHandler(dispatch, serverActionQueue, subscription, model, 
             tGetPayload();
         }
     }
+    tGetPayload();
     return handlePayload;
 }
 exports.default = createPayloadHandler;

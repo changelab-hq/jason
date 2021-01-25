@@ -1,6 +1,6 @@
 class Jason::ApiController < ::ApplicationController
   def schema
-    render json: JASON_API_MODEL.to_json
+    render json: Jason.schema
   end
 
   def action

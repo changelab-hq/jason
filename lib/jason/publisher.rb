@@ -5,22 +5,71 @@ module Jason::Publisher
     as_json_config = api_model.as_json_config
     scope = api_model.scope
 
+    # Exists
     if self.persisted? && (scope.blank? || self.class.unscoped.send(scope).exists?(self.id))
       payload = self.reload.as_json(as_json_config)
-      $redis_jason.hset("jason:#{self.class.name.underscore}:cache", self.id, payload.to_json)
+      gidx = Jason::LuaGenerator.new.cache_json(self.class.name.underscore, self.id, payload)
+      return [payload, gidx]
+    # Has been destroyed
     else
-      $redis_jason.hdel("jason:#{self.class.name.underscore}:cache", self.id)
+      $redis_jason.hdel("jason:cache:#{self.class.name.underscore}", self.id)
+      return []
     end
   end
 
   def publish_json
-    cache_json
-    return if skip_publish_json
-    self.class.jason_subscriptions.each do |id, config_json|
-      config = JSON.parse(config_json)
+    payload, gidx = cache_json
+    subs = jason_subscriptions # Get this first, because could be changed
 
-      if (config['conditions'] || {}).all? { |field, value| self.send(field) == value }
-        Jason::Subscription.new(id: id).update(self.class.name.underscore)
+    # Situations where IDs may need to change and this can't be immediately determined
+    # - An instance is created where it belongs_to an instance under a subscription
+    # - An instance belongs_to association changes - e.g. comment.post_id changes to/from one with a subscription
+    # - TODO: The value of an instance changes so that it enters/leaves a subscription
+
+    # TODO: Optimize this, by caching associations rather than checking each time instance is saved
+    jason_assocs = self.class.reflect_on_all_associations(:belongs_to).select { |assoc| assoc.klass.has_jason? }
+    jason_assocs.each do |assoc|
+      if self.previous_changes[assoc.foreign_key].present?
+
+        Jason::Subscription.update_ids(
+          self.class.name.underscore,
+          id,
+          assoc.klass.name.underscore,
+          self.previous_changes[assoc.foreign_key][0],
+          self.previous_changes[assoc.foreign_key][1]
+        )
+      elsif (persisted? && @was_a_new_record && send(assoc.foreign_key).present?)
+        Jason::Subscription.update_ids(
+          self.class.name.underscore,
+          id,
+          assoc.klass.name.underscore,
+          nil,
+          send(assoc.foreign_key)
+        )
+      end
+    end
+
+    if !persisted? # Deleted
+      Jason::Subscription.remove_ids(
+        self.class.name.underscore,
+        [id]
+       )
+    end
+
+    # - An instance is created where it belongs_to an _all_ subscription
+    if self.previous_changes['id'].present?
+      Jason::Subscription.add_id(self.class.name.underscore, id)
+    end
+
+    return if skip_publish_json
+
+    if self.persisted?
+      jason_subscriptions.each do |sub_id|
+        Jason::Subscription.new(id: sub_id).update(self.class.name.underscore, id, payload, gidx)
+      end
+    else
+      subs.each do |sub_id|
+        Jason::Subscription.new(id: sub_id).destroy(self.class.name.underscore, id)
       end
     end
   end
@@ -30,15 +79,11 @@ module Jason::Publisher
     publish_json if (self.previous_changes.keys.map(&:to_sym) & subscribed_fields).present? || !self.persisted?
   end
 
+  def jason_subscriptions
+    Jason::Subscription.for_instance(self.class.name.underscore, id)
+  end
+
   class_methods do
-    def subscriptions
-      $redis_jason.hgetall("jason:#{self.name.underscore}:subscriptions")
-    end
-
-    def jason_subscriptions
-      $redis_jason.hgetall("jason:#{self.name.underscore}:subscriptions")
-    end
-
     def publish_all(instances)
       instances.each(&:cache_json)
 
@@ -47,30 +92,22 @@ module Jason::Publisher
       end
     end
 
+    def has_jason?
+      true
+    end
+
     def flush_cache
-      $redis_jason.del("jason:#{self.name.underscore}:cache")
+      $redis_jason.del("jason:cache:#{self.name.underscore}")
     end
 
     def setup_json
+      self.before_save -> {
+        @was_a_new_record = new_record?
+      }
       self.after_initialize -> {
         @api_model = Jason::ApiModel.new(self.class.name.underscore)
       }
       self.after_commit :publish_json_if_changed
-
-      include_models = Jason::ApiModel.new(self.name.underscore).include_models
-
-      include_models.map do |assoc|
-        puts assoc
-        reflection = self.reflect_on_association(assoc.to_sym)
-        reflection.klass.after_commit -> {
-          subscribed_fields = Jason::ApiModel.new(self.class.name.underscore).subscribed_fields
-          puts subscribed_fields.inspect
-
-          if (self.previous_changes.keys.map(&:to_sym) & subscribed_fields).present?
-            self.send(reflection.inverse_of.name)&.publish_json
-          end
-        }
-      end
     end
 
     def find_or_create_by_id(params)

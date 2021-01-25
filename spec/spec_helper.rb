@@ -3,6 +3,7 @@ ENV["RAILS_ENV"] = "test"
 require File.expand_path("../dummy/config/environment.rb",  __FILE__)
 require 'rspec/rails'
 require "jason"
+require 'pry'
 
 ENGINE_RAILS_ROOT=File.join(File.dirname(__FILE__), '../')
 
@@ -18,6 +19,22 @@ RSpec.configure do |config|
 
   # Use the specified formatter
   config.formatter = :documentation # :progress, :html, :textmate
+
+  config.before(:all) do
+    Jason.setup do |config|
+      config.schema = {
+        post: {
+          subscribed_fields: [:id, :name]
+        },
+        comment: {
+          subscribed_fields: [:id]
+        },
+        user: {
+          subscribed_fields: [:id]
+        }
+      }
+    end
+  end
 
   config.before(:each) do
     $redis_jason.flushdb
