@@ -297,7 +297,18 @@ RSpec.describe Jason::Subscription do
     end
 
     context "getting subscriptions" do
-
+      it "gets all the models in the sub" do
+        expect(subscription.get).to include({
+          idx: 0,
+          md5Hash: subscription.id,
+          model: 'comment',
+          payload: match_array([
+            a_hash_including({ 'id' => comment1.id }),
+            a_hash_including({ 'id' => comment2.id })
+          ]),
+          type: 'payload'
+        })
+      end
     end
   end
 end

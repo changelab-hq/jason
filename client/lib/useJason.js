@@ -25,18 +25,26 @@ function useJason({ reducers, middleware = [], extraActions }) {
         restClient_1.default.get('/jason/api/schema')
             .then(({ data: snakey_schema }) => {
             const schema = humps_1.camelizeKeys(snakey_schema);
-            console.log({ schema });
+            console.debug({ schema });
             const serverActionQueue = createServerActionQueue_1.default();
             const consumer = actioncable_1.createConsumer();
             const allReducers = Object.assign(Object.assign({}, reducers), createJasonReducers_1.default(schema));
-            console.log({ allReducers });
+            console.debug({ allReducers });
             const store = toolkit_1.configureStore({ reducer: allReducers, middleware: [...middleware, pruneIdsMiddleware_1.default(schema)] });
+            const dispatch = store.dispatch;
+            const optDis = createOptDis_1.default(schema, dispatch, restClient_1.default, serverActionQueue);
+            const actions = createActions_1.default(schema, store, restClient_1.default, optDis, extraActions);
+            const eager = makeEager_1.default(schema);
             let payloadHandlers = {};
+            let configs = {};
             function handlePayload(payload) {
-                const { model, md5Hash } = payload;
-                const handler = payloadHandlers[`${lodash_1.default.camelCase(model)}:${md5Hash}`];
+                const { md5Hash } = payload;
+                const handler = payloadHandlers[md5Hash];
                 if (handler) {
-                    handler(Object.assign(Object.assign({}, payload), { model: lodash_1.default.camelCase(model) }));
+                    handler(payload);
+                }
+                else {
+                    console.warn("Payload arrived with no handler", payload, payloadHandlers);
                 }
             }
             const subscription = (consumer.subscriptions.create({
@@ -44,39 +52,42 @@ function useJason({ reducers, middleware = [], extraActions }) {
             }, {
                 connected: () => {
                     setConnected(true);
+                    dispatch({ type: 'jason/upsert', payload: { connected: true } });
+                    console.debug('Connected to ActionCable');
+                    // When AC loses connection - all state is lost, so we need to re-initialize all subscriptions
+                    lodash_1.default.values(configs).forEach(config => createSubscription(config));
                 },
                 received: payload => {
                     handlePayload(payload);
+                    console.debug("ActionCable Payload received: ", payload);
                 },
                 disconnected: () => {
                     setConnected(false);
+                    dispatch({ type: 'jason/upsert', payload: { connected: false } });
                     console.warn('Disconnected from ActionCable');
                 }
             }));
             function createSubscription(config) {
-                const md5Hash = blueimp_md5_1.default(JSON.stringify(config));
-                lodash_1.default.map(config, (v, model) => {
-                    payloadHandlers[`${model}:${md5Hash}`] = createPayloadHandler_1.default(store.dispatch, serverActionQueue, subscription, model, schema[model], md5Hash);
-                });
-                subscription.send({ createSubscription: config });
+                // We need the hash to be consistent in Ruby / Javascript
+                const hashableConfig = lodash_1.default(Object.assign({ conditions: {}, includes: {} }, config)).toPairs().sortBy(0).fromPairs().value();
+                const md5Hash = blueimp_md5_1.default(JSON.stringify(hashableConfig));
+                payloadHandlers[md5Hash] = createPayloadHandler_1.default({ dispatch, serverActionQueue, subscription, config });
+                configs[md5Hash] = hashableConfig;
+                setTimeout(() => subscription.send({ createSubscription: hashableConfig }), 500);
                 return {
-                    remove: () => removeSubscription(config),
+                    remove: () => removeSubscription(hashableConfig),
                     md5Hash
                 };
             }
             function removeSubscription(config) {
                 subscription.send({ removeSubscription: config });
                 const md5Hash = blueimp_md5_1.default(JSON.stringify(config));
-                lodash_1.default.map(config, (v, model) => {
-                    delete payloadHandlers[`${model}:${md5Hash}`];
-                });
+                delete payloadHandlers[md5Hash];
+                delete configs[md5Hash];
             }
-            const optDis = createOptDis_1.default(schema, store.dispatch, restClient_1.default, serverActionQueue);
-            const actions = createActions_1.default(schema, store, restClient_1.default, optDis, extraActions);
-            const eager = makeEager_1.default(schema);
             setValue({
                 actions: actions,
-                subscribe: (config) => createSubscription(config),
+                subscribe: config => createSubscription(config),
                 eager,
                 handlePayload
             });

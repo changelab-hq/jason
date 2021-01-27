@@ -13,7 +13,6 @@ function enrich(type, payload) {
 
 export default function createOptDis(schema, dispatch, restClient, serverActionQueue) {
   const plurals = _.keys(schema).map(k => pluralize(k))
-  let inFlight = false
 
   function enqueueServerAction (action) {
     serverActionQueue.addItem(action)
@@ -23,7 +22,6 @@ export default function createOptDis(schema, dispatch, restClient, serverActionQ
     const action = serverActionQueue.getItem()
     if (!action) return
 
-    inFlight = true
     restClient.post('/jason/api/action', action)
     .then(serverActionQueue.itemProcessed)
     .catch(e => {

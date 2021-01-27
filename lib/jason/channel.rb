@@ -1,37 +1,59 @@
 class Jason::Channel < ActionCable::Channel::Base
   attr_accessor :subscriptions
 
+  def subscribe
+    stream_from 'jason'
+  end
+
   def receive(message)
-    subscriptions ||= []
+    handle_message(message)
+  end
+
+  private
+
+  def handle_message(message)
+    pp message['createSubscription']
+    @subscriptions ||= []
 
     begin # ActionCable swallows errors in this message - ensure they're output to logs.
       if (config = message['createSubscription'])
-        subscription = Jason::Subscription.new(config: config)
-        subscriptions.push(subscription)
-        subscription.add_consumer(identifier)
-        config.keys.each do |model|
-          transmit(subscription.get(model.to_s.underscore))
-        end
-        stream_from subscription.channel
+        create_subscription(config['model'], config['conditions'], config['includes'])
       elsif (config = message['removeSubscription'])
-        subscription = Jason::Subscription.new(config: config)
-        subscriptions.reject! { |s| s.id == subscription.id }
-        subscription.remove_consumer(identifier)
-
-        # Rails for some reason removed stop_stream_from, so we need to stop all and then restart the other streams
-        # stop_all_streams
-        # subscriptions.each do |s|
-        #   stream_from s.channel
-        # end
-      elsif (data = message['getPayload'])
-        config = data['config']
-        model = data['model']
-        Jason::Subscription.new(config: config).get(model.to_s.underscore)
+        remove_subscription(config)
+      elsif (config = message['getPayload'])
+        get_payload(config)
       end
     rescue => e
       puts e.message
       puts e.backtrace
       raise e
+    end
+  end
+
+  def create_subscription(model, conditions, includes)
+    subscription = Jason::Subscription.upsert_by_config(model, conditions: conditions || {}, includes: includes || nil)
+    stream_from subscription.channel
+
+    subscriptions.push(subscription)
+    subscription.add_consumer(identifier)
+    subscription.get.each do |payload|
+      pp payload
+      transmit(payload) if payload.present?
+    end
+  end
+
+  def remove_subscription(config)
+    subscription = Jason::Subscription.upsert_by_config(config['model'], conditions: config['conditions'], includes: config['includes'])
+    subscriptions.reject! { |s| s.id == subscription.id }
+    subscription.remove_consumer(identifier)
+
+    # TODO Stop streams
+  end
+
+  def get_payload(config)
+    subscription = Jason::Subscription.upsert_by_config(config['model'], conditions: config['conditions'], includes: config['includes'])
+    subscription.get.each do |payload|
+      transmit(payload) if payload.present?
     end
   end
 end

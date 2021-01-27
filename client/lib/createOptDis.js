@@ -16,7 +16,6 @@ function enrich(type, payload) {
 }
 function createOptDis(schema, dispatch, restClient, serverActionQueue) {
     const plurals = lodash_1.default.keys(schema).map(k => pluralize_1.default(k));
-    let inFlight = false;
     function enqueueServerAction(action) {
         serverActionQueue.addItem(action);
     }
@@ -24,7 +23,6 @@ function createOptDis(schema, dispatch, restClient, serverActionQueue) {
         const action = serverActionQueue.getItem();
         if (!action)
             return;
-        inFlight = true;
         restClient.post('/jason/api/action', action)
             .then(serverActionQueue.itemProcessed)
             .catch(e => {

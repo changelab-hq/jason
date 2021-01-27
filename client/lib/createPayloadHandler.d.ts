@@ -1,1 +1,6 @@
-export default function createPayloadHandler(dispatch: any, serverActionQueue: any, subscription: any, model: any, config: any, subscriptionId: any): (data: any) => void;
+export default function createPayloadHandler({ dispatch, serverActionQueue, subscription, config }: {
+    dispatch: any;
+    serverActionQueue: any;
+    subscription: any;
+    config: any;
+}): (data: any) => void;

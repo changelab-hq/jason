@@ -42,7 +42,6 @@ function generateJasonSlices(models) {
             setSubscriptionIds(s, a) {
                 const { payload } = a;
                 const { subscriptionId, model, ids } = payload;
-                console.log({ s });
                 s[model][subscriptionId] = ids;
             },
             addSubscriptionId(s, a) {

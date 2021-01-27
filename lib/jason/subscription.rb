@@ -7,17 +7,19 @@ class Jason::Subscription
       raw_config = $redis_jason.hgetall("jason:subscriptions:#{id}").map { |k,v| [k, JSON.parse(v)] }.to_h
       set_config(raw_config)
     else
-      @id = Digest::MD5.hexdigest(config.to_json)
+      @id = Digest::MD5.hexdigest(config.sort_by { |key| key }.to_h.to_json)
+      pp config.sort_by { |key| key }.to_h.to_json
       configure(config)
     end
+    pp @id
   end
 
   def self.upsert_by_config(model, conditions: {}, includes: {})
     self.new(config: {
       model: model,
-      conditions: conditions,
-      includes: includes
-    }.compact)
+      conditions: conditions || {},
+      includes: includes || {}
+    })
   end
 
   def self.find_by_id(id)
@@ -105,6 +107,8 @@ class Jason::Subscription
 
     if referrer_model_name.blank? && conditions.blank?
       $redis_jason.sadd("jason:models:#{model_name}:all:subscriptions", id)
+      ids = model_klass(model_name).all.pluck(:id)
+      set_ids_for_sub_models(assoc_name, ids, enforce: enforce)
       return
     end
 
@@ -131,6 +135,9 @@ class Jason::Subscription
 
   # Add IDs that aren't present
   def commit_ids(model_name, ids)
+    pp 'COMMIT'
+    pp model_name
+    pp ids
     $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", ids)
     ids.each do |instance_id|
       $redis_jason.sadd("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
@@ -225,6 +232,19 @@ class Jason::Subscription
     return nil
   end
 
+  def all_models(tree = includes)
+    sub_models = if tree.is_a?(Hash)
+      tree.map do |k,v|
+        [k, all_models(v)]
+      end
+    else
+      tree
+    end
+
+    pp ([model] + [sub_models]).flatten.uniq.map(&:to_s).map(&:singularize)
+    ([model] + [sub_models]).flatten.uniq.map(&:to_s).map(&:singularize)
+  end
+
   def clear_all_ids(assoc_name = model)
     model_name = assoc_name.to_s.singularize
     includes_tree = model_name == model ? includes : get_tree_for(assoc_name)
@@ -311,23 +331,34 @@ class Jason::Subscription
     "jason:#{id}"
   end
 
-  def get(model_name)
-    instance_jsons, idx = Jason::LuaGenerator.new.get_payload(model_name, id)
+  def get
+    all_models.map { |model_name| get_for_model(model_name) }
+  end
+
+  def get_for_model(model_name)
+    if $redis_jason.sismember("jason:models:#{model_name}:all:subscriptions", id)
+      instance_jsons_hash, idx = $redis_jason.multi do |r|
+        r.hgetall("jason:cache:#{model_name}")
+        r.get("jason:subscription:#{id}:#{model_name}:idx")
+      end
+      instance_jsons = instance_jsons_hash.values
+    else
+      instance_jsons, idx = Jason::LuaGenerator.new.get_payload(model_name, id)
+    end
+
     return if instance_jsons.blank?
 
     payload = instance_jsons.map do |instance_json|
       instance_json ? JSON.parse(instance_json) : {}
     end
 
-    payload = {
+    {
       type: 'payload',
       model: model_name,
       payload: payload,
       md5Hash: id,
       idx: idx.to_i
     }
-
-    ActionCable.server.broadcast("jason:#{id}", payload)
   end
 
   def update(model_name, instance_id, payload, gidx)
@@ -342,11 +373,11 @@ class Jason::Subscription
       idx: idx.to_i
     }
 
-    ActionCable.server.broadcast("jason:#{id}", payload)
+    ActionCable.server.broadcast(channel, payload)
   end
 
   def destroy(model_name, instance_id)
-    idx = $redis_jason.incr("jason:subscription:#{id}:idx")
+    idx = $redis_jason.incr("jason:subscription:#{id}:#{model_name}idx")
 
     payload = {
       id: instance_id,
@@ -356,6 +387,6 @@ class Jason::Subscription
       idx: idx.to_i
     }
 
-    ActionCable.server.broadcast("jason:#{id}", payload)
+    ActionCable.server.broadcast(channel, payload)
   end
 end

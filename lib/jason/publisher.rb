@@ -1,6 +1,14 @@
 module Jason::Publisher
   extend ActiveSupport::Concern
 
+  # Warning: Could be expensive. Mainly useful for rebuilding cache after changing Jason config or on deploy
+  def self.cache_all
+    Rails.application.eager_load!
+    ActiveRecord::Base.descendants.each do |klass|
+      klass.cache_all if klass.respond_to?(:cache_all)
+    end
+  end
+
   def cache_json
     as_json_config = api_model.as_json_config
     scope = api_model.scope
@@ -84,12 +92,8 @@ module Jason::Publisher
   end
 
   class_methods do
-    def publish_all(instances)
-      instances.each(&:cache_json)
-
-      subscriptions.each do |id, config_json|
-        Jason::Subscription.new(id: id).update(self.name.underscore)
-      end
+    def cache_all
+      all.each(&:cache_json)
     end
 
     def has_jason?

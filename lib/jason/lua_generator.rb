@@ -15,18 +15,17 @@ class Jason::LuaGenerator
     # If value has changed, return old value and new idx. Otherwise do nothing.
     cmd = <<~LUA
       local t = {}
+      local models = {}
       local ids = redis.call('smembers', 'jason:subscriptions:' .. ARGV[2] .. ':ids:' .. ARGV[1])
 
-      local count = 0
-      for _ in pairs(ids) do count = count + 1 end
-
-      if (count > 0) then
-        t[#t+1] = redis.call( 'hmget', 'jason:cache:' .. ARGV[1], unpack(ids))
-        t[#t+1] = redis.call( 'get', 'jason:subscription:' .. ARGV[2] .. ':' .. ARGV[1] .. ':idx' )
-        return t
+      for k,id in pairs(ids) do
+        models[#models+1] = redis.call( 'hget', 'jason:cache:' .. ARGV[1], id)
       end
 
-      return false
+      t[#t+1] = models
+      t[#t+1] = redis.call( 'get', 'jason:subscription:' .. ARGV[2] .. ':' .. ARGV[1] .. ':idx' )
+
+      return t
     LUA
 
     $redis_jason.eval cmd, [], [model_name, sub_id]
