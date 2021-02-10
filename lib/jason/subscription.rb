@@ -1,6 +1,6 @@
 class Jason::Subscription
   attr_accessor :id, :config
-  attr_reader :includes_helper
+  attr_reader :includes_helper, :graph_helper
 
   def initialize(id: nil, config: nil)
     if id
@@ -12,7 +12,9 @@ class Jason::Subscription
       pp config.sort_by { |key| key }.to_h.to_json
       configure(config)
     end
-    @includes_helper = Jason::IncludesHelper.new(self.config['model'], self.config['includes'])
+    @includes_helper = Jason::IncludesHelper.new({ model => self.config['includes'] })
+    @graph_helper = Jason::GraphHelper.new(self.id, @includes_helper)
+
     pp @id
   end
 
@@ -60,12 +62,14 @@ class Jason::Subscription
     to_add = new_model_subscriptions - old_model_subscriptions
     to_add.each do |sub_id|
       # add the current ID to the subscription, then add the tree below it
-      find_by_id(sub_id).set_id(model_name, id)
+      # td: Add graph edge parent -> model
+      find_by_id(sub_id).set_ids_for_sub_models(model_name, [id])
     end
 
     # To remove
     to_remove = old_model_subscriptions - new_model_subscriptions
     to_remove.each do |sub_id|
+      # remove graph edge parent -> model
       find_by_id(sub_id).set_ids_for_sub_models(enforce: true)
     end
 
@@ -91,11 +95,6 @@ class Jason::Subscription
 
   def set_config(raw_config)
     @config =  raw_config.with_indifferent_access
-  end
-
-  # E.g. add comment#123, and then sub models
-  def set_id(model_name, id)
-    set_ids_for_sub_models(model_name, [id])
   end
 
   def clear_id(model_name, id, parent_model_name)
@@ -152,12 +151,8 @@ class Jason::Subscription
   # 'posts', [post#1, post#2,...]
   def set_ids_for_sub_models(model_name = model, ids = nil, enforce: false)
     # Limitation: Same association can't appear twice
-    includes_tree = includes_helper.get_tree_for(includes_helper.get_assoc_name(model_name))
-    all_models = includes_helper.all_models(includes_tree).select { |x| x.present? }
-
-    if model_name != model
-      all_models = (all_models - [model] + [model_name]).uniq
-    end
+    includes_tree = includes_helper.get_tree_for(model_name)
+    all_models = includes_helper.all_models(model_name)
 
     relation = model_name.classify.constantize.all.eager_load(includes_tree)
     pp all_models
@@ -187,6 +182,24 @@ class Jason::Subscription
     # pluck returns only a 1D array if only 1 arg passed
     if all_models.size == 1
       instance_ids = [instance_ids]
+    end
+
+    # Build the tree
+    # Find parent -> child model relationships
+    all_models.each_with_index do |parent_model, parent_idx|
+      all_models.each_with_index do |child_model, child_idx|
+        return if parent_model == child_model
+        return if !includes_helper.in_sub(parent_model, child_model)
+
+        pairs = instance_ids.map { |row| [row[parent_idx], row[child_idx]] }
+          .uniq
+          .reject{ |pair| pair[0].blank? || pair[1].blank? }
+
+        pairs.each do |pair|
+          edge = "#{parent_model}:#{pair[0]}-#{child_model}:#{pair[1]}"
+          $redis_jason.sadd("jason:subscriptions:#{id}:graph", )
+        end
+      end
     end
 
     all_models.each_with_index do |model_name, i|

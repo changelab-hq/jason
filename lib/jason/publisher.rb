@@ -39,7 +39,6 @@ module Jason::Publisher
     jason_assocs = self.class.reflect_on_all_associations(:belongs_to).select { |assoc| assoc.klass.respond_to?(:has_jason?) }
     jason_assocs.each do |assoc|
       if self.previous_changes[assoc.foreign_key].present?
-
         Jason::Subscription.update_ids(
           self.class.name.underscore,
           id,
