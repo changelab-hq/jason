@@ -12,3 +12,6 @@
 client/node_modules/
 
 client/yarn-error.log
+*.log
+*.gem
+.DS_Store

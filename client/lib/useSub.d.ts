@@ -1,1 +1,1 @@
-export default function useSub(config: any): void;
+export default function useSub(config: any, options?: {}): void;
