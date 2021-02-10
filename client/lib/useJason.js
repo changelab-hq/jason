@@ -37,6 +37,7 @@ function useJason({ reducers, middleware = [], extraActions }) {
             const eager = makeEager_1.default(schema);
             let payloadHandlers = {};
             let configs = {};
+            let subOptions = {};
             function handlePayload(payload) {
                 const { md5Hash } = payload;
                 const handler = payloadHandlers[md5Hash];
@@ -55,7 +56,7 @@ function useJason({ reducers, middleware = [], extraActions }) {
                     dispatch({ type: 'jason/upsert', payload: { connected: true } });
                     console.debug('Connected to ActionCable');
                     // When AC loses connection - all state is lost, so we need to re-initialize all subscriptions
-                    lodash_1.default.values(configs).forEach(config => createSubscription(config));
+                    lodash_1.default.keys(configs).forEach(md5Hash => createSubscription(configs[md5Hash], subOptions[md5Hash]));
                 },
                 received: payload => {
                     handlePayload(payload);
@@ -67,15 +68,28 @@ function useJason({ reducers, middleware = [], extraActions }) {
                     console.warn('Disconnected from ActionCable');
                 }
             }));
-            function createSubscription(config) {
+            function createSubscription(config, options = {}) {
                 // We need the hash to be consistent in Ruby / Javascript
                 const hashableConfig = lodash_1.default(Object.assign({ conditions: {}, includes: {} }, config)).toPairs().sortBy(0).fromPairs().value();
                 const md5Hash = blueimp_md5_1.default(JSON.stringify(hashableConfig));
                 payloadHandlers[md5Hash] = createPayloadHandler_1.default({ dispatch, serverActionQueue, subscription, config });
                 configs[md5Hash] = hashableConfig;
+                subOptions[md5Hash] = options;
                 setTimeout(() => subscription.send({ createSubscription: hashableConfig }), 500);
+                let pollInterval = null;
+                console.log("createSubscription", { config, options });
+                // This is only for debugging / dev - not prod!
+                // @ts-ignore
+                if (options.pollInterval) {
+                    // @ts-ignore
+                    pollInterval = setInterval(() => subscription.send({ getPayload: config, forceRefresh: true }), options.pollInterval);
+                }
                 return {
-                    remove: () => removeSubscription(hashableConfig),
+                    remove() {
+                        removeSubscription(hashableConfig);
+                        if (pollInterval)
+                            clearInterval(pollInterval);
+                    },
                     md5Hash
                 };
             }
@@ -84,10 +98,11 @@ function useJason({ reducers, middleware = [], extraActions }) {
                 const md5Hash = blueimp_md5_1.default(JSON.stringify(config));
                 delete payloadHandlers[md5Hash];
                 delete configs[md5Hash];
+                delete subOptions[md5Hash];
             }
             setValue({
                 actions: actions,
-                subscribe: config => createSubscription(config),
+                subscribe: createSubscription,
                 eager,
                 handlePayload
             });

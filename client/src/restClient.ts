@@ -8,6 +8,6 @@ const restClient = applyCaseMiddleware(axios.create() as any, {
   preservedKeys: (key) => {
     return isUuid(key)
   }
-})
+}) as any
 
 export default restClient

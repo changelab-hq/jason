@@ -1,2 +1,2 @@
-declare const restClient: import("axios").AxiosInstance;
+declare const restClient: any;
 export default restClient;

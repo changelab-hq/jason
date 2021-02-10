@@ -21,7 +21,7 @@ class Jason::Channel < ActionCable::Channel::Base
       elsif (config = message['removeSubscription'])
         remove_subscription(config)
       elsif (config = message['getPayload'])
-        get_payload(config)
+        get_payload(config, message['forceRefresh'])
       end
     rescue => e
       puts e.message
@@ -50,8 +50,11 @@ class Jason::Channel < ActionCable::Channel::Base
     # TODO Stop streams
   end
 
-  def get_payload(config)
+  def get_payload(config, force_refresh = false)
     subscription = Jason::Subscription.upsert_by_config(config['model'], conditions: config['conditions'], includes: config['includes'])
+    if force_refresh
+      subscription.set_ids(enforce: true)
+    end
     subscription.get.each do |payload|
       transmit(payload) if payload.present?
     end

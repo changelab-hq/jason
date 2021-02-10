@@ -45,6 +45,7 @@ export default function useJason({ reducers, middleware = [], extraActions }: { 
 
       let payloadHandlers = {}
       let configs = {}
+      let subOptions = {}
 
       function handlePayload(payload) {
         const { md5Hash } = payload
@@ -66,7 +67,7 @@ export default function useJason({ reducers, middleware = [], extraActions }: { 
           console.debug('Connected to ActionCable')
 
           // When AC loses connection - all state is lost, so we need to re-initialize all subscriptions
-          _.values(configs).forEach(config => createSubscription(config))
+          _.keys(configs).forEach(md5Hash => createSubscription(configs[md5Hash], subOptions[md5Hash]))
         },
         received: payload => {
           handlePayload(payload)
@@ -79,17 +80,31 @@ export default function useJason({ reducers, middleware = [], extraActions }: { 
         }
       }));
 
-      function createSubscription(config) {
+      function createSubscription(config, options = {}) {
         // We need the hash to be consistent in Ruby / Javascript
         const hashableConfig = _({ conditions: {}, includes: {}, ...config }).toPairs().sortBy(0).fromPairs().value()
         const md5Hash = md5(JSON.stringify(hashableConfig))
         payloadHandlers[md5Hash] = createPayloadHandler({ dispatch, serverActionQueue, subscription, config })
         configs[md5Hash] = hashableConfig
+        subOptions[md5Hash] = options
 
         setTimeout(() => subscription.send({ createSubscription: hashableConfig }), 500)
+        let pollInterval = null as any;
+
+        console.log("createSubscription", { config, options })
+
+        // This is only for debugging / dev - not prod!
+        // @ts-ignore
+        if (options.pollInterval) {
+          // @ts-ignore
+          pollInterval = setInterval(() => subscription.send({ getPayload: config, forceRefresh: true }), options.pollInterval)
+        }
 
         return {
-          remove: () => removeSubscription(hashableConfig),
+          remove() {
+            removeSubscription(hashableConfig)
+            if (pollInterval) clearInterval(pollInterval)
+          },
           md5Hash
         }
       }
@@ -99,11 +114,12 @@ export default function useJason({ reducers, middleware = [], extraActions }: { 
         const md5Hash = md5(JSON.stringify(config))
         delete payloadHandlers[md5Hash]
         delete configs[md5Hash]
+        delete subOptions[md5Hash]
       }
 
       setValue({
         actions: actions,
-        subscribe: config => createSubscription(config),
+        subscribe: createSubscription,
         eager,
         handlePayload
       })

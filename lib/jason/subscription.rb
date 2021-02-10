@@ -149,16 +149,22 @@ class Jason::Subscription
     old_ids = $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model_name}")
 
     # Remove
-    $redis_jason.srem("jason:subscriptions:#{id}:ids:#{model_name}", (old_ids - ids))
+    ids_to_remove = old_ids - ids
+    if ids_to_remove.present?
+      $redis_jason.srem("jason:subscriptions:#{id}:ids:#{model_name}", ids_to_remove)
+    end
 
-    (old_ids - ids).each do |instance_id|
+    ids_to_remove.each do |instance_id|
       $redis_jason.srem("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
     end
 
     # Add
-    $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", (ids - old_ids))
+    ids_to_add = ids - old_ids
+    if ids_to_add.present?
+      $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", ids_to_add)
+    end
 
-    (ids - old_ids).each do |instance_id|
+    ids_to_add.each do |instance_id|
       $redis_jason.sadd("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
     end
   end
