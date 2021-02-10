@@ -152,6 +152,29 @@ RSpec.describe Jason::Subscription do
         expect(Jason::Subscription.for_instance('comment', comment3.id)).to eq([])
       end
     end
+
+    context "even deeply nested models" do
+      let!(:user1) { User.create! }
+      let!(:user2) { User.create! }
+      let!(:comment1) { Comment.create!(post: post, user: user1 )}
+      let!(:comment2) { Comment.create!(post: post, user: user2 )}
+
+      let!(:role1) { Role.create!(user: user1, name: 'admin' )}
+      let!(:role2) { Role.create!(user: user2, name: 'user' )}
+
+      let(:subscription) { Jason::Subscription.upsert_by_config('post', conditions: { id: post.id }, includes: { comments: { likes: [],  user: ['roles'] } }) }
+
+      before do
+        subscription.add_consumer('cde456')
+      end
+
+      it "assigns nested instances to the subscription" do
+        new_role = Role.create!(user: user1, name: 'test')
+
+        expect(subscription.ids('role')).to match_array([new_role.id, role1.id, role2.id])
+      end
+    end
+
   end
 
   context "instances changing nested ID" do

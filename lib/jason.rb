@@ -9,6 +9,7 @@ require 'jason/publisher'
 require 'jason/subscription'
 require 'jason/engine'
 require 'jason/lua_generator'
+require 'jason/includes_helper'
 
 module Jason
   class Error < StandardError; end

@@ -1,5 +1,6 @@
 class Jason::Subscription
   attr_accessor :id, :config
+  attr_reader :includes_helper
 
   def initialize(id: nil, config: nil)
     if id
@@ -11,6 +12,7 @@ class Jason::Subscription
       pp config.sort_by { |key| key }.to_h.to_json
       configure(config)
     end
+    @includes_helper = Jason::IncludesHelper.new(self.config['model'], self.config['includes'])
     pp @id
   end
 
@@ -55,14 +57,16 @@ class Jason::Subscription
     end
 
     # To add
-    (new_model_subscriptions - old_model_subscriptions).each do |sub_id|
+    to_add = new_model_subscriptions - old_model_subscriptions
+    to_add.each do |sub_id|
       # add the current ID to the subscription, then add the tree below it
       find_by_id(sub_id).set_id(model_name, id)
     end
 
     # To remove
-    (old_model_subscriptions - new_model_subscriptions).each do |sub_id|
-      find_by_id(sub_id).remove_ids(model_name, [id])
+    to_remove = old_model_subscriptions - new_model_subscriptions
+    to_remove.each do |sub_id|
+      find_by_id(sub_id).set_ids_for_sub_models(enforce: true)
     end
 
     # TODO changes to sub models - e.g. post -> comment -> user
@@ -82,7 +86,7 @@ class Jason::Subscription
   end
 
   def self.all
-    $redis_jason.keys('jason:subscriptions:*')
+    $redis_jason.smembers('jason:subscriptions').map { |id| Jason::Subscription.find_by_id(id) }
   end
 
   def set_config(raw_config)
@@ -91,42 +95,11 @@ class Jason::Subscription
 
   # E.g. add comment#123, and then sub models
   def set_id(model_name, id)
-    commit_ids(model_name, [id])
-    assoc_name = get_assoc_name(model_name)
-    set_ids_for_sub_models(assoc_name, [id])
+    set_ids_for_sub_models(model_name, [id])
   end
 
   def clear_id(model_name, id, parent_model_name)
     remove_ids(model_name, [id])
-  end
-
-  # Set the instance IDs for the subscription
-  # Add an entry to the subscription list for each instance
-  def set_ids(assoc_name = model, referrer_model_name = nil, referrer_ids = nil, enforce: false)
-    model_name = assoc_name.to_s.singularize
-
-    if referrer_model_name.blank? && conditions.blank?
-      $redis_jason.sadd("jason:models:#{model_name}:all:subscriptions", id)
-      ids = model_klass(model_name).all.pluck(:id)
-      set_ids_for_sub_models(assoc_name, ids, enforce: enforce)
-      return
-    end
-
-    if referrer_model_name.blank?
-      ids = model_klass(model_name).where(conditions).pluck(:id)
-    else
-      assoc = model_klass(referrer_model_name).reflect_on_association(assoc_name.to_sym)
-
-      if assoc.is_a?(ActiveRecord::Reflection::HasManyReflection)
-        ids = model_klass(model_name).where(assoc.foreign_key => referrer_ids).pluck(:id)
-      elsif assoc.is_a?(ActiveRecord::Reflection::BelongsToReflection)
-        ids = model_klass(referrer_model_name).where(id: referrer_ids).pluck(assoc.foreign_key)
-      end
-    end
-    return if ids.blank?
-
-    enforce ? enforce_ids(model_name, ids) : commit_ids(model_name, ids)
-    set_ids_for_sub_models(assoc_name, ids, enforce: enforce)
   end
 
   def refresh_ids(assoc_name = model, referrer_model_name = nil, referrer_ids)
@@ -149,16 +122,22 @@ class Jason::Subscription
     old_ids = $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model_name}")
 
     # Remove
-    $redis_jason.srem("jason:subscriptions:#{id}:ids:#{model_name}", (old_ids - ids))
+    ids_to_remove = old_ids - ids
+    if ids_to_remove.present?
+      $redis_jason.srem("jason:subscriptions:#{id}:ids:#{model_name}", ids_to_remove)
+    end
 
-    (old_ids - ids).each do |instance_id|
+    ids_to_remove.each do |instance_id|
       $redis_jason.srem("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
     end
 
     # Add
-    $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", (ids - old_ids))
+    ids_to_add = ids - old_ids
+    if ids_to_add.present?
+      $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", ids_to_add)
+    end
 
-    (ids - old_ids).each do |instance_id|
+    ids_to_add.each do |instance_id|
       $redis_jason.sadd("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
     end
   end
@@ -171,107 +150,68 @@ class Jason::Subscription
   end
 
   # 'posts', [post#1, post#2,...]
-  def set_ids_for_sub_models(assoc_name, ids, enforce: false)
-    model_name = assoc_name.to_s.singularize
+  def set_ids_for_sub_models(model_name = model, ids = nil, enforce: false)
     # Limitation: Same association can't appear twice
-    includes_tree = get_tree_for(assoc_name)
+    includes_tree = includes_helper.get_tree_for(includes_helper.get_assoc_name(model_name))
+    all_models = includes_helper.all_models(includes_tree).select { |x| x.present? }
 
-    if includes_tree.is_a?(Hash)
-      includes_tree.each do |assoc_name, includes_tree|
-        set_ids(assoc_name, model_name, ids, enforce: enforce)
-      end
-    # [:likes, :user]
-    elsif includes_tree.is_a?(Array)
-      includes_tree.each do |assoc_name|
-        set_ids(assoc_name, model_name, ids, enforce: enforce)
-      end
-    elsif includes_tree.is_a?(String)
-      set_ids(includes_tree, model_name, ids, enforce: enforce)
+    if model_name != model
+      all_models = (all_models - [model] + [model_name]).uniq
     end
-  end
 
-  # assoc could be plural or not, so need to scan both.
-  def get_assoc_name(model_name, haystack = includes)
-    return model_name if model_name == model
+    relation = model_name.classify.constantize.all.eager_load(includes_tree)
+    pp all_models
+    pp model_name
+    pp "INCLUDES TREE"
+    pp includes_tree
+    puts relation.to_sql
 
-    if haystack.is_a?(Hash)
-      haystack.each do |assoc_name, includes_tree|
-        if model_name.pluralize == assoc_name.to_s.pluralize
-          return assoc_name
+    if model_name == model
+      if conditions.blank?
+        $redis_jason.sadd("jason:models:#{model_name}:all:subscriptions", id)
+        all_models -= [model_name]
+      else
+        relation = relation.where(conditions)
+      end
+    else
+      raise "Must supply IDs for sub models" if ids.nil?
+      return if ids.blank?
+      relation = relation.where(id: ids)
+    end
+
+    pluck_args = all_models.map { |m| "#{m.pluralize}.id" }
+    pp "PLUCK ARGS"
+    pp pluck_args
+    instance_ids = relation.pluck(*pluck_args)
+
+    # pluck returns only a 1D array if only 1 arg passed
+    if all_models.size == 1
+      instance_ids = [instance_ids]
+    end
+
+    all_models.each_with_index do |model_name, i|
+      ids = instance_ids.map { |row| row[i] }.uniq.compact
+      if ids.present?
+        if enforce
+          enforce_ids(model_name, ids)
         else
-          found_assoc = get_assoc_name(model_name, includes_tree)
-          return found_assoc if found_assoc
+          commit_ids(model_name, ids)
         end
       end
-    elsif haystack.is_a?(Array)
-      haystack.each do |assoc_name|
-        if model_name.pluralize == assoc_name.to_s.pluralize
-          return assoc_name
-        end
-      end
-    else
-      if model_name.pluralize == haystack.to_s.pluralize
-        return haystack
-      end
     end
-
-    return nil
   end
 
-  def get_tree_for(needle, assoc_name = nil, haystack = includes)
-    return includes if needle == model
-    return haystack if needle.to_s == assoc_name.to_s
-
-    if haystack.is_a?(Hash)
-      haystack.each do |assoc_name, includes_tree|
-        found_haystack = get_tree_for(needle, assoc_name, includes_tree)
-        return found_haystack if found_haystack
+  def clear_all_ids
+    includes_helper.all_models.each do |model_name|
+      if model_name == model && conditions.blank?
+        $redis_jason.srem("jason:models:#{model_name}:all:subscriptions", id)
       end
-    end
 
-    return nil
-  end
-
-  def all_models(tree = includes)
-    sub_models = if tree.is_a?(Hash)
-      tree.map do |k,v|
-        [k, all_models(v)]
+      ids = $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model_name}")
+      ids.each do |instance_id|
+        $redis_jason.srem("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
       end
-    else
-      tree
-    end
-
-    pp ([model] + [sub_models]).flatten.uniq.map(&:to_s).map(&:singularize)
-    ([model] + [sub_models]).flatten.uniq.map(&:to_s).map(&:singularize)
-  end
-
-  def clear_all_ids(assoc_name = model)
-    model_name = assoc_name.to_s.singularize
-    includes_tree = model_name == model ? includes : get_tree_for(assoc_name)
-
-    if model_name == model && conditions.blank?
-      $redis_jason.srem("jason:models:#{model_name}:all:subscriptions", id)
-    end
-
-    ids = $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model_name}")
-    ids.each do |instance_id|
-      $redis_jason.srem("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
-    end
-    $redis_jason.del("jason:subscriptions:#{id}:ids:#{model_name}")
-
-    # Recursively clear IDs
-    # { comments: [:like] }
-    if includes_tree.is_a?(Hash)
-      includes_tree.each do |assoc_name, includes_tree|
-        clear_all_ids(assoc_name)
-      end
-    # [:likes, :user]
-    elsif includes_tree.is_a?(Array)
-      includes_tree.each do |assoc_name|
-        clear_all_ids(assoc_name)
-      end
-    elsif includes_tree.is_a?(String)
-      clear_all_ids(includes_tree)
+      $redis_jason.del("jason:subscriptions:#{id}:ids:#{model_name}")
     end
   end
 
@@ -291,12 +231,9 @@ class Jason::Subscription
     @config['conditions']
   end
 
-  def includes
-    @config['includes']
-  end
-
   def configure(raw_config)
     set_config(raw_config)
+    $redis_jason.sadd("jason:subscriptions", id)
     $redis_jason.hmset("jason:subscriptions:#{id}", *config.map { |k,v| [k, v.to_json] }.flatten)
   end
 
@@ -310,7 +247,7 @@ class Jason::Subscription
     $redis_jason.hset("jason:consumers", consumer_id, Time.now.utc)
 
     if before_consumer_count == 0
-      set_ids
+      set_ids_for_sub_models
     end
   end
 
@@ -332,7 +269,7 @@ class Jason::Subscription
   end
 
   def get
-    all_models.map { |model_name| get_for_model(model_name) }
+    includes_helper.all_models.map { |model_name| get_for_model(model_name) }.compact
   end
 
   def get_for_model(model_name)

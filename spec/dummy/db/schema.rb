@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2021_01_11_091303) do
+ActiveRecord::Schema.define(version: 2021_02_09_165759) do
 
 # Could not dump table "comments" because of following StandardError
 #   Unknown type 'uuid' for column 'id'
@@ -19,6 +19,9 @@ ActiveRecord::Schema.define(version: 2021_01_11_091303) do
 #   Unknown type 'uuid' for column 'id'
 
 # Could not dump table "posts" because of following StandardError
+#   Unknown type 'uuid' for column 'id'
+
+# Could not dump table "roles" because of following StandardError
 #   Unknown type 'uuid' for column 'id'
 
 # Could not dump table "users" because of following StandardError

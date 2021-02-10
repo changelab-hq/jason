@@ -35,7 +35,8 @@ module Jason::Publisher
     # - TODO: The value of an instance changes so that it enters/leaves a subscription
 
     # TODO: Optimize this, by caching associations rather than checking each time instance is saved
-    jason_assocs = self.class.reflect_on_all_associations(:belongs_to).select { |assoc| assoc.klass.has_jason? }
+    puts "TEST"
+    jason_assocs = self.class.reflect_on_all_associations(:belongs_to).select { |assoc| assoc.klass.respond_to?(:has_jason?) }
     jason_assocs.each do |assoc|
       if self.previous_changes[assoc.foreign_key].present?
 
