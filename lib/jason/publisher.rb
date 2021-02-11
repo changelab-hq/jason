@@ -25,7 +25,7 @@ module Jason::Publisher
     end
   end
 
-  def publish_json
+  def publish_json(previous_changes)
     payload, gidx = cache_json
     subs = jason_subscriptions # Get this first, because could be changed
 
@@ -37,13 +37,13 @@ module Jason::Publisher
     # TODO: Optimize this, by caching associations rather than checking each time instance is saved
     jason_assocs = self.class.reflect_on_all_associations(:belongs_to).select { |assoc| assoc.klass.respond_to?(:has_jason?) }
     jason_assocs.each do |assoc|
-      if self.previous_changes[assoc.foreign_key].present?
+      if previous_changes[assoc.foreign_key].present?
         Jason::Subscription.update_ids(
           self.class.name.underscore,
           id,
           assoc.klass.name.underscore,
-          self.previous_changes[assoc.foreign_key][0],
-          self.previous_changes[assoc.foreign_key][1]
+          previous_changes[assoc.foreign_key][0],
+          previous_changes[assoc.foreign_key][1]
         )
       elsif (persisted? && @was_a_new_record && send(assoc.foreign_key).present?)
         Jason::Subscription.update_ids(
@@ -83,7 +83,7 @@ module Jason::Publisher
 
   def publish_json_if_changed
     subscribed_fields = api_model.subscribed_fields
-    publish_json if (self.previous_changes.keys.map(&:to_sym) & subscribed_fields).present? || !self.persisted?
+    publish_json(self.previous_changes) if (self.previous_changes.keys.map(&:to_sym) & subscribed_fields).present? || !self.persisted?
   end
 
   def jason_subscriptions

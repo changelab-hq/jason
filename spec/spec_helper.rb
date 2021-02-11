@@ -27,10 +27,16 @@ RSpec.configure do |config|
           subscribed_fields: [:id, :name]
         },
         comment: {
-          subscribed_fields: [:id]
+          subscribed_fields: [:id, :post_id, :user_id]
         },
         user: {
           subscribed_fields: [:id]
+        },
+        like: {
+          subscribed_fields: [:id, :user_id, :comment_id]
+        },
+        role: {
+          subscribed_fields: [:id, :user_id, :name]
         }
       }
     end

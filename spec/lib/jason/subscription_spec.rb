@@ -127,7 +127,6 @@ RSpec.describe Jason::Subscription do
 
       it "removes two-level nested instances from the subscription" do
         # TODO: Find out why this is failing
-        $pry = true
         like2.destroy
 
         expect(subscription.ids('like')).to match_array([like1.id])
@@ -205,7 +204,7 @@ RSpec.describe Jason::Subscription do
         expect(Jason::Subscription.for_instance('comment', comment1.id)).to eq([subscription.id])
         expect(Jason::Subscription.for_instance('comment', comment2.id)).to eq([subscription.id])
 
-        Jason::Subscription.update_ids('comment', comment1.id, 'post', post1.id, post2.id)
+        comment1.update!(post_id: post2.id)
 
         expect(subscription.ids('comment')).to match_array([comment1.id, comment2.id])
         expect(Jason::Subscription.for_instance('comment', comment1.id)).to eq([subscription.id])
@@ -215,7 +214,8 @@ RSpec.describe Jason::Subscription do
 
     context "when change causes instance to be added" do
       it "adds the ID and sub-IDs" do
-        Jason::Subscription.update_ids('comment', comment3.id, 'post', post3.id, post1.id)
+        $pry = true
+        comment3.update!(post_id: post1.id)
 
         expect(subscription.ids('comment')).to match_array([comment1.id, comment2.id, comment3.id])
         expect(Jason::Subscription.for_instance('comment', comment1.id)).to eq([subscription.id])
@@ -236,16 +236,16 @@ RSpec.describe Jason::Subscription do
         # user2 also referenced by comment2, so shouldn't be removed from the sub
         comment1.update!(user: user2)
 
-        expect(Jason::Subscription.for_instance('user', user1.id)).to eq([subscription.id])
+        expect(Jason::Subscription.for_instance('user', user1.id)).to eq([])
         expect(Jason::Subscription.for_instance('user', user2.id)).to eq([subscription.id])
 
-        Jason::Subscription.update_ids('comment', comment1.id, 'post', post1.id, post3.id)
+        comment1.update!(post_id: post3.id)
 
         expect(subscription.ids('comment')).to match_array([comment2.id])
         expect(Jason::Subscription.for_instance('comment', comment1.id)).to eq([])
         expect(Jason::Subscription.for_instance('comment', comment2.id)).to eq([subscription.id])
 
-        expect(Jason::Subscription.for_instance('user', user1.id)).to eq([subscription.id])
+        expect(Jason::Subscription.for_instance('user', user1.id)).to eq([])
         expect(Jason::Subscription.for_instance('user', user2.id)).to eq([subscription.id])
       end
     end
@@ -295,15 +295,23 @@ RSpec.describe Jason::Subscription do
     it "broadcasts nested on create" do
       new_comment_id = SecureRandom.uuid
 
-      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", {
+      message = {
         :id=>new_comment_id,
         :model=>"comment",
-        :payload=>{"id"=>new_comment_id},
+        :payload=>{
+          "id" => new_comment_id,
+          "post_id" => post.id,
+          "user_id" => User.first.id
+        },
         :md5Hash=>subscription.id,
         :idx=>1}
-      )
+      message2 = message.clone
+      message2[:idx] = 2
 
-      new_comment = post.comments.create!(id: new_comment_id, body: "Hello", user: User.first)
+      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", message)
+      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", message2)
+
+      post.comments.create!(id: new_comment_id, body: "Hello", user: User.first)
     end
 
     it "broadcasts on destroy" do
@@ -332,6 +340,57 @@ RSpec.describe Jason::Subscription do
           type: 'payload'
         })
       end
+    end
+  end
+
+  context "integration testing subscriptions with deeper tree" do
+    let(:post) { Post.create! }
+
+    let!(:user1) { User.create! }
+    let!(:user2) { User.create! }
+
+    let!(:comment1) { Comment.create!(post: post, user: user1 )}
+    let!(:comment2) { Comment.create!(post: post, user: user2 )}
+
+    let!(:role1) { Role.create!(user: user1, name: 'badger')}
+    let!(:role1_2) { Role.create!(user: user1, name: 'beaver')}
+    let!(:role2) { Role.create!(user: user2, name: 'bear')}
+
+    let(:subscription) { Jason::Subscription.upsert_by_config('post', conditions: { id: post.id }, includes: { comments: { user: ['roles'] } } ) }
+
+    # Don't expect these to be included
+    let!(:post2) { Post.create! }
+    let!(:comment3) { Comment.create!(post: post2, user: user2 )}
+
+    before do
+      subscription.add_consumer('cde456')
+    end
+
+    it "sends the correct payloads in response to changes" do
+      role2_2_id = SecureRandom.uuid
+
+      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", {
+        :id=>role2_2_id,
+        :model=>"role",
+        :payload=>{
+          "id" => role2_2_id,
+          "name" => 'bandicoot',
+          "user_id" => user2.id
+        },
+        :md5Hash=>subscription.id,
+        :idx => be_in([1,2])}).at_least(:once)
+      role2_2 = user2.roles.create!(id: role2_2_id, name: 'bandicoot')
+    end
+
+    it "works when removing a tree" do
+      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", {
+        :id=>comment2.id,
+        :model=>"comment",
+        :destroy => true,
+        :md5Hash=>subscription.id,
+        :idx => be_in([1,2])})
+
+      comment2.destroy
     end
   end
 end

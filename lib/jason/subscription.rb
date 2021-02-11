@@ -9,13 +9,19 @@ class Jason::Subscription
       set_config(raw_config)
     else
       @id = Digest::MD5.hexdigest(config.sort_by { |key| key }.to_h.to_json)
-      pp config.sort_by { |key| key }.to_h.to_json
       configure(config)
     end
     @includes_helper = Jason::IncludesHelper.new({ model => self.config['includes'] })
     @graph_helper = Jason::GraphHelper.new(self.id, @includes_helper)
 
-    pp @id
+    check_for_missing_keys
+  end
+
+  def check_for_missing_keys
+    missing_keys = includes_helper.all_models - Jason.schema.keys.map(&:to_s)
+    if missing_keys.present?
+      raise "#{missing_keys.inspect} are not in the schema. Only models in the Jason schema can be subscribed."
+    end
   end
 
   def self.upsert_by_config(model, conditions: {}, includes: {})
@@ -28,6 +34,13 @@ class Jason::Subscription
 
   def self.find_by_id(id)
     self.new(id: id)
+  end
+
+  def self.for_instance_with_child(model_name, id, child_model_name, include_all = true)
+    sub_ids = for_instance(model_name, id, include_all = true)
+    sub_ids.select do |sub_id|
+      find_by_id(sub_id).includes_helper.in_sub(model_name, child_model_name)
+    end
   end
 
   def self.for_instance(model_name, id, include_all = true)
@@ -45,41 +58,121 @@ class Jason::Subscription
 
   # Find and update subscriptions affected by a model changing foreign key
   # comment, comment_id, post, old_post_id, new_post_id
-  def self.update_ids(model_name, id, parent_model_name, old_foreign_id, new_foreign_id)
-    # Check if this change means it needs to be removed
-    # First find subscriptions that reference this model
+  def self.update_ids(changed_model_name, changed_model_id, foreign_model_name, old_foreign_id, new_foreign_id)
+    # There are 4 cases to consider.
+    # changed_instance ---/--- foreign_instance
+    #                  \--+--- new_foreign_instance
+    #
+    # foreign instance can either be parent or child for a given subscription
+    # 1. Child swap/add: foreign is child
+    # 2. Stay in the family: foreign is parent + both old and new foreign instances are part of the sub
+    # 3. Join the family: foreign is parent + only new foreign instance are part of the sub
+    # 4. Leave the family: foreign is parent + only the old foreign instance is part of the sub
 
-    if old_foreign_id
-      old_model_subscriptions = for_instance(parent_model_name, old_foreign_id, false)
-      new_model_subscriptions = for_instance(parent_model_name, new_foreign_id, false)
-    else
-      # If this is a new instance, we need to include _all_ subscriptions
-      old_model_subscriptions = []
-      new_model_subscriptions = for_instance(parent_model_name, new_foreign_id, true)
+    #########
+    # Subs where changed is parent
+    sub_ids = for_instance_with_child(changed_model_name, changed_model_id, foreign_model_name, true)
+    sub_ids.each do |sub_id|
+      subscription = find_by_id(sub_id)
+      id_changeset = subscription.graph_helper.apply_update({
+        remove: [{
+          model_names: [changed_model_name, foreign_model_name],
+          instance_ids: [[changed_model_id, old_foreign_id]]
+        }],
+        add: [
+          {
+            model_names: [changed_model_name, foreign_model_name],
+            instance_ids: [[changed_model_id, new_foreign_id]]
+          },
+          # Add IDs of child models
+          subscription.load_ids_for_sub_models(foreign_model_name, new_foreign_id)
+        ]
+      })
+
+      subscription.apply_id_changeset(id_changeset)
+      subscription.broadcast_id_changeset(id_changeset)
     end
 
-    # To add
-    to_add = new_model_subscriptions - old_model_subscriptions
-    to_add.each do |sub_id|
-      # add the current ID to the subscription, then add the tree below it
-      # td: Add graph edge parent -> model
-      find_by_id(sub_id).set_ids_for_sub_models(model_name, [id])
+    old_sub_ids = for_instance_with_child(foreign_model_name, old_foreign_id, changed_model_name, true)
+    new_sub_ids = for_instance_with_child(foreign_model_name, new_foreign_id, changed_model_name, true)
+
+    #########
+    # Subs where changed is child
+    # + parent in both old + new
+    # this is simple, only the edges need to change - no IDs can be changed
+    (old_sub_ids & new_sub_ids).each do |sub_id|
+      subscription = find_by_id(sub_id)
+      subscription.graph_helper.apply_update({
+        remove: [{
+          model_names: [changed_model_name, foreign_model_name],
+          instance_ids: [[changed_model_id, old_foreign_id]]
+        }],
+        add: [{
+          model_names: [changed_model_name, foreign_model_name],
+          instance_ids: [[changed_model_id, new_foreign_id]]
+        }]
+      })
     end
 
-    # To remove
-    to_remove = old_model_subscriptions - new_model_subscriptions
-    to_remove.each do |sub_id|
-      # remove graph edge parent -> model
-      find_by_id(sub_id).set_ids_for_sub_models(enforce: true)
+    #########
+    # Subs where changed is child
+    # + old parent wasn't in the sub, but new parent is
+    # IE the changed instance is joining the sub
+    # No edges are removed, just added
+    (new_sub_ids - old_sub_ids).each do |sub_id|
+      subscription = find_by_id(sub_id)
+      id_changeset = subscription.graph_helper.apply_update({
+        add: [
+          {
+            model_names: [changed_model_name, foreign_model_name],
+            instance_ids: [[changed_model_id, new_foreign_id]]
+          },
+          # Add IDs of child models
+          subscription.load_ids_for_sub_models(changed_model_name, changed_model_id)
+        ]
+      })
+
+      subscription.apply_id_changeset(id_changeset)
+      subscription.broadcast_id_changeset(id_changeset)
     end
 
-    # TODO changes to sub models - e.g. post -> comment -> user
+    #########
+    # Subs where changed is child
+    # + old parent was in the sub, but new parent isn't
+    # Just need to remove the link, orphan detection will do the rest
+    (old_sub_ids - new_sub_ids).each do |sub_id|
+      subscription = find_by_id(sub_id)
+      id_changeset = subscription.graph_helper.apply_update({
+        remove: [
+          {
+            model_names: [changed_model_name, foreign_model_name],
+            instance_ids: [[changed_model_id, old_foreign_id]]
+          }
+        ]
+      })
+
+      subscription.apply_id_changeset(id_changeset)
+      subscription.broadcast_id_changeset(id_changeset)
+    end
   end
 
   def self.remove_ids(model_name, ids)
+    # td: finish this
     ids.each do |instance_id|
       for_instance(model_name, instance_id, false).each do |sub_id|
-        find_by_id(sub_id).remove_ids(model_name, [instance_id])
+        subscription = find_by_id(sub_id)
+
+        subscription.graph_helper.apply_update({
+          remove: [
+            {
+              model_names: [changed_model_name, foreign_model_name],
+              instance_ids: [[changed_model_id, old_foreign_id]]
+            }
+          ]
+        })
+
+        subscription.apply_id_changeset(id_changeset)
+        subscription.broadcast_id_changeset(id_changeset)
       end
     end
   end
@@ -94,7 +187,7 @@ class Jason::Subscription
   end
 
   def set_config(raw_config)
-    @config =  raw_config.with_indifferent_access
+    @config =  raw_config.deep_stringify_keys.deep_transform_values { |v| v.is_a?(Symbol) ? v.to_s : v }
   end
 
   def clear_id(model_name, id, parent_model_name)
@@ -107,9 +200,6 @@ class Jason::Subscription
 
   # Add IDs that aren't present
   def commit_ids(model_name, ids)
-    pp 'COMMIT'
-    pp model_name
-    pp ids
     $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", ids)
     ids.each do |instance_id|
       $redis_jason.sadd("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
@@ -148,18 +238,34 @@ class Jason::Subscription
     end
   end
 
-  # 'posts', [post#1, post#2,...]
-  def set_ids_for_sub_models(model_name = model, ids = nil, enforce: false)
+  def apply_id_changeset(changeset)
+    changeset[:ids_to_add].each do |model_name, ids|
+      commit_ids(model_name, ids)
+    end
+
+    changeset[:ids_to_remove].each do |model_name, ids|
+      remove_ids(model_name, ids)
+    end
+  end
+
+  def broadcast_id_changeset(changeset)
+    changeset[:ids_to_add].each do |model_name, ids|
+      ids.each { |id| add(model_name, id) }
+    end
+
+    changeset[:ids_to_remove].each do |model_name, ids|
+      ids.each { |id| destroy(model_name, id) }
+    end
+  end
+
+  # Take a model name and IDs and return an edge set of all the models that appear and
+  # their instance IDs
+  def load_ids_for_sub_models(model_name, ids)
     # Limitation: Same association can't appear twice
     includes_tree = includes_helper.get_tree_for(model_name)
     all_models = includes_helper.all_models(model_name)
 
     relation = model_name.classify.constantize.all.eager_load(includes_tree)
-    pp all_models
-    pp model_name
-    pp "INCLUDES TREE"
-    pp includes_tree
-    puts relation.to_sql
 
     if model_name == model
       if conditions.blank?
@@ -175,8 +281,6 @@ class Jason::Subscription
     end
 
     pluck_args = all_models.map { |m| "#{m.pluralize}.id" }
-    pp "PLUCK ARGS"
-    pp pluck_args
     instance_ids = relation.pluck(*pluck_args)
 
     # pluck returns only a 1D array if only 1 arg passed
@@ -184,34 +288,18 @@ class Jason::Subscription
       instance_ids = [instance_ids]
     end
 
+    return { model_names: all_models, instance_ids: instance_ids }
+  end
+
+  # 'posts', [post#1, post#2,...]
+  def set_ids_for_sub_models(model_name = model, ids = nil, enforce: false)
+    edge_set = load_ids_for_sub_models(model_name, ids)
+
     # Build the tree
-    # Find parent -> child model relationships
-    all_models.each_with_index do |parent_model, parent_idx|
-      all_models.each_with_index do |child_model, child_idx|
-        return if parent_model == child_model
-        return if !includes_helper.in_sub(parent_model, child_model)
-
-        pairs = instance_ids.map { |row| [row[parent_idx], row[child_idx]] }
-          .uniq
-          .reject{ |pair| pair[0].blank? || pair[1].blank? }
-
-        pairs.each do |pair|
-          edge = "#{parent_model}:#{pair[0]}-#{child_model}:#{pair[1]}"
-          $redis_jason.sadd("jason:subscriptions:#{id}:graph", )
-        end
-      end
-    end
-
-    all_models.each_with_index do |model_name, i|
-      ids = instance_ids.map { |row| row[i] }.uniq.compact
-      if ids.present?
-        if enforce
-          enforce_ids(model_name, ids)
-        else
-          commit_ids(model_name, ids)
-        end
-      end
-    end
+    id_changeset = graph_helper.apply_update({
+      add: [edge_set]
+    })
+    apply_id_changeset(id_changeset)
   end
 
   def clear_all_ids
@@ -311,6 +399,21 @@ class Jason::Subscription
     }
   end
 
+  def add(model_name, instance_id)
+    idx = $redis_jason.incr("jason:subscription:#{id}:#{model_name}:idx")
+    payload = JSON.parse($redis_jason.hget("jason:cache:#{model_name}", instance_id) || '{}')
+
+    payload = {
+      id: instance_id,
+      model: model_name,
+      payload: payload,
+      md5Hash: id,
+      idx: idx.to_i
+    }
+
+    ActionCable.server.broadcast(channel, payload)
+  end
+
   def update(model_name, instance_id, payload, gidx)
     idx = Jason::LuaGenerator.new.get_subscription(model_name, instance_id, id, gidx)
     return if idx.blank?
@@ -327,7 +430,7 @@ class Jason::Subscription
   end
 
   def destroy(model_name, instance_id)
-    idx = $redis_jason.incr("jason:subscription:#{id}:#{model_name}idx")
+    idx = $redis_jason.incr("jason:subscription:#{id}:#{model_name}:idx")
 
     payload = {
       id: instance_id,

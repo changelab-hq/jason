@@ -44,6 +44,28 @@ class Jason::LuaGenerator
       end
     LUA
 
-    result = $redis_jason.eval cmd, [], [model_name, id, sub_id, gidx]
+    $redis_jason.eval cmd, [], [model_name, id, sub_id, gidx]
+  end
+
+  def update_set_with_diff(key, add_members, remove_members)
+    cmd = <<~LUA
+      local old_members = redis.call('smembers', KEYS[1])
+      local add_size = ARGV[1]
+
+      for k, m in pairs({unpack(ARGV, 2, add_size + 1)}) do
+        redis.call('sadd', KEYS[1], m)
+      end
+
+      for k, m in pairs({unpack(ARGV, add_size + 2, #ARGV)}) do
+        redis.call('srem', KEYS[1], m)
+      end
+
+      return old_members
+    LUA
+
+    args = [add_members.size, add_members, remove_members].flatten
+
+    old_members = $redis_jason.eval cmd, [key], args
+    return [old_members, (old_members + add_members - remove_members).uniq]
   end
 end
