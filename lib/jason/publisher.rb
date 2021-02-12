@@ -74,10 +74,6 @@ module Jason::Publisher
       jason_subscriptions.each do |sub_id|
         Jason::Subscription.new(id: sub_id).update(self.class.name.underscore, id, payload, gidx)
       end
-    else
-      subs.each do |sub_id|
-        Jason::Subscription.new(id: sub_id).destroy(self.class.name.underscore, id)
-      end
     end
   end
 

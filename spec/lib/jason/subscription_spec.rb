@@ -315,16 +315,22 @@ RSpec.describe Jason::Subscription do
     end
 
     it "broadcasts on destroy" do
-      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", {
-        :id=>comment2.id,
-        :model=>"comment",
-        :md5Hash=>subscription.id,
-        :idx=>1,
-        :destroy=>true
-      })
+      broadcasts = []
+
+      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
 
       expect(subscription.ids('comment')).to match_array([comment1.id, comment2.id])
       comment2.destroy
+
+      expect(broadcasts.size).to eq(3)
+      expect(broadcasts.all? { |b| b[:message][:destroy] == true }).to be(true)
+      expect(broadcasts.map{ |b| b[:message].slice(:model, :id)}).to match_array([
+        { id: comment2.id, model: 'comment' },
+        { id: user2.id, model: 'user' },
+        { id: like2.id, model: 'like' }
+      ])
     end
 
     context "getting subscriptions" do
@@ -383,14 +389,93 @@ RSpec.describe Jason::Subscription do
     end
 
     it "works when removing a tree" do
-      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", {
-        :id=>comment2.id,
-        :model=>"comment",
-        :destroy => true,
-        :md5Hash=>subscription.id,
-        :idx => be_in([1,2])})
+      broadcasts = []
+
+      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
 
       comment2.destroy
+      expect(broadcasts.size).to eq(3)
+      expect(broadcasts.all? { |b| b[:message][:destroy] == true }).to be(true)
+      expect(broadcasts.map{ |b| b[:message].slice(:model, :id)}).to match_array([
+        { id: comment2.id, model: 'comment' },
+        { id: user2.id, model: 'user' },
+        { id: role2.id, model: 'role' }
+      ])
+    end
+
+    it "works when removing a tree with one-many children" do
+      broadcasts = []
+
+      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      comment1.destroy
+      expect(broadcasts.size).to eq(4)
+      expect(broadcasts.all? { |b| b[:message][:destroy] == true }).to be(true)
+      expect(broadcasts.map{ |b| b[:message].slice(:model, :id)}).to match_array([
+        { id: comment1.id, model: 'comment' },
+        { id: user1.id, model: 'user' },
+        { id: role1.id, model: 'role' },
+        { id: role1_2.id, model: 'role' },
+      ])
+    end
+
+    it "works when removing a subtree" do
+      broadcasts = []
+
+      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      user1.destroy
+      expect(broadcasts.size).to eq(3)
+      expect(broadcasts.all? { |b| b[:message][:destroy] == true }).to be(true)
+      expect(broadcasts.map{ |b| b[:message].slice(:model, :id)}).to match_array([
+        { id: user1.id, model: 'user' },
+        { id: role1.id, model: 'role' },
+        { id: role1_2.id, model: 'role' },
+      ])
+    end
+
+    it "works when moving a subtree" do
+      broadcasts = []
+
+      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      comment2.update!(post: post2)
+
+      expect(broadcasts.size).to eq(3)
+      expect(broadcasts.all? { |b| b[:message][:destroy] == true }).to be(true)
+      expect(broadcasts.map{ |b| b[:message].slice(:model, :id)}).to match_array([
+        { id: comment2.id, model: 'comment' },
+        { id: user2.id, model: 'user' },
+        { id: role2.id, model: 'role' }
+      ])
+    end
+
+    it "works when moving a subtree child" do
+      broadcasts = []
+
+      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      comment2.update!(user: user1)
+      expect(broadcasts.size).to eq(3)
+      expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
+        { id: comment2.id, model: 'comment', payload: {
+          "id" => comment2.id,
+          "post_id" => post.id,
+          "user_id" => user1.id
+        } },
+        { destroy: true, id: user2.id, model: 'user' },
+        { destroy: true, id: role2.id, model: 'role' }
+      ])
     end
   end
 end

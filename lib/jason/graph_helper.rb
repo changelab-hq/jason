@@ -26,6 +26,12 @@ class Jason::GraphHelper
     $redis_jason.srem("jason:subscriptions:#{id}:graph", edges)
   end
 
+  def apply_remove_node(node)
+    edges = $redis_jason.smembers("jason:subscriptions:#{id}:graph")
+    edges = find_edges_with_node(edges, node)
+    diff_edges_from_graph(remove_edges: edges)
+  end
+
   # Add and remove edges, return graph before and after
   def apply_update(add: nil, remove: nil)
     add_edges = []
@@ -39,10 +45,13 @@ class Jason::GraphHelper
 
     if remove.present?
       remove.each do |edge_set|
-        remove_edges += build_edges(edge_set[:model_names], edge_set[:instance_ids])
+        remove_edges += build_edges(edge_set[:model_names], edge_set[:instance_ids], include_root: false)
       end
     end
+    diff_edges_from_graph(add_edges: add_edges, remove_edges: remove_edges)
+  end
 
+  def diff_edges_from_graph(add_edges: [], remove_edges: [])
     old_edges, new_edges = Jason::LuaGenerator.new.update_set_with_diff("jason:subscriptions:#{id}:graph", add_edges.flatten, remove_edges.flatten)
 
     old_graph = build_graph_from_edges(old_edges)
@@ -120,7 +129,7 @@ class Jason::GraphHelper
 
   private
 
-  def build_edges(all_models, instance_ids)
+  def build_edges(all_models, instance_ids, include_root: true)
     # Build the tree
     # Find parent -> child model relationships
     edges = []
@@ -142,7 +151,7 @@ class Jason::GraphHelper
 
     root_model = includes_helper.root_model
 
-    if all_models.include?(root_model)
+    if include_root && all_models.include?(root_model)
       root_idx = all_models.find_index(root_model)
       root_ids = instance_ids.map { |row| row[root_idx] }.uniq.compact
 

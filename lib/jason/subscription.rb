@@ -137,6 +137,7 @@ class Jason::Subscription
     end
 
     #########
+    # --> Leaving the family
     # Subs where changed is child
     # + old parent was in the sub, but new parent isn't
     # Just need to remove the link, orphan detection will do the rest
@@ -150,7 +151,6 @@ class Jason::Subscription
           }
         ]
       })
-
       subscription.apply_id_changeset(id_changeset)
       subscription.broadcast_id_changeset(id_changeset)
     end
@@ -162,15 +162,7 @@ class Jason::Subscription
       for_instance(model_name, instance_id, false).each do |sub_id|
         subscription = find_by_id(sub_id)
 
-        subscription.graph_helper.apply_update({
-          remove: [
-            {
-              model_names: [changed_model_name, foreign_model_name],
-              instance_ids: [[changed_model_id, old_foreign_id]]
-            }
-          ]
-        })
-
+        id_changeset = subscription.graph_helper.apply_remove_node("#{model_name}:#{instance_id}")
         subscription.apply_id_changeset(id_changeset)
         subscription.broadcast_id_changeset(id_changeset)
       end
@@ -202,31 +194,6 @@ class Jason::Subscription
   def commit_ids(model_name, ids)
     $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", ids)
     ids.each do |instance_id|
-      $redis_jason.sadd("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
-    end
-  end
-
-  # Ensure IDs are _only_ the ones passed
-  def enforce_ids(model_name, ids)
-    old_ids = $redis_jason.smembers("jason:subscriptions:#{id}:ids:#{model_name}")
-
-    # Remove
-    ids_to_remove = old_ids - ids
-    if ids_to_remove.present?
-      $redis_jason.srem("jason:subscriptions:#{id}:ids:#{model_name}", ids_to_remove)
-    end
-
-    ids_to_remove.each do |instance_id|
-      $redis_jason.srem("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
-    end
-
-    # Add
-    ids_to_add = ids - old_ids
-    if ids_to_add.present?
-      $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", ids_to_add)
-    end
-
-    ids_to_add.each do |instance_id|
       $redis_jason.sadd("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
     end
   end
