@@ -74,19 +74,23 @@ class Jason::Subscription
     sub_ids = for_instance_with_child(changed_model_name, changed_model_id, foreign_model_name, true)
     sub_ids.each do |sub_id|
       subscription = find_by_id(sub_id)
+
+      # If foreign key has been nulled, nothing to add
+      add = new_foreign_id.present? ? [
+        {
+          model_names: [changed_model_name, foreign_model_name],
+          instance_ids: [[changed_model_id, new_foreign_id]]
+        },
+        # Add IDs of child models
+        subscription.load_ids_for_sub_models(foreign_model_name, new_foreign_id)
+      ] : nil
+
       id_changeset = subscription.graph_helper.apply_update({
         remove: [{
           model_names: [changed_model_name, foreign_model_name],
           instance_ids: [[changed_model_id, old_foreign_id]]
         }],
-        add: [
-          {
-            model_names: [changed_model_name, foreign_model_name],
-            instance_ids: [[changed_model_id, new_foreign_id]]
-          },
-          # Add IDs of child models
-          subscription.load_ids_for_sub_models(foreign_model_name, new_foreign_id)
-        ]
+        add: add
       })
 
       subscription.apply_id_changeset(id_changeset)

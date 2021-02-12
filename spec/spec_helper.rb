@@ -27,7 +27,7 @@ RSpec.configure do |config|
           subscribed_fields: [:id, :name]
         },
         comment: {
-          subscribed_fields: [:id, :post_id, :user_id]
+          subscribed_fields: [:id, :post_id, :user_id, :moderating_user_id]
         },
         user: {
           subscribed_fields: [:id]

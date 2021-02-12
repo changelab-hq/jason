@@ -301,7 +301,8 @@ RSpec.describe Jason::Subscription do
         :payload=>{
           "id" => new_comment_id,
           "post_id" => post.id,
-          "user_id" => User.first.id
+          "user_id" => User.first.id,
+          "moderating_user_id" => nil
         },
         :md5Hash=>subscription.id,
         :idx=>1}
@@ -367,6 +368,7 @@ RSpec.describe Jason::Subscription do
     # Don't expect these to be included
     let!(:post2) { Post.create! }
     let!(:comment3) { Comment.create!(post: post2, user: user2 )}
+    let!(:user3) { User.create! }
 
     before do
       subscription.add_consumer('cde456')
@@ -440,6 +442,29 @@ RSpec.describe Jason::Subscription do
       ])
     end
 
+    it "works when nulling a subtree" do
+      broadcasts = []
+
+      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      comment1.update!(user: nil)
+
+      expect(broadcasts.size).to eq(4)
+      expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
+        { id: comment1.id, model: 'comment', payload: {
+          "id" => comment1.id,
+          "post_id" => post.id,
+          "user_id" => nil,
+          "moderating_user_id" => nil
+        } },
+        { destroy: true, id: user1.id, model: 'user' },
+        { destroy: true, id: role1.id, model: 'role' },
+        { destroy: true, id: role1_2.id, model: 'role' },
+      ])
+    end
+
     it "works when moving a subtree" do
       broadcasts = []
 
@@ -471,11 +496,85 @@ RSpec.describe Jason::Subscription do
         { id: comment2.id, model: 'comment', payload: {
           "id" => comment2.id,
           "post_id" => post.id,
-          "user_id" => user1.id
+          "user_id" => user1.id,
+          "moderating_user_id" => nil
         } },
         { destroy: true, id: user2.id, model: 'user' },
         { destroy: true, id: role2.id, model: 'role' }
       ])
+    end
+
+    it "works when modifying an association sharing same class as an assocition in the subscription" do
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      comment2.update!(moderating_user_id: user3.id)
+
+      # user3 isn't in the sub, so shouldn't be broadcast
+      expect(broadcasts.size).to eq(1)
+      expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
+        { id: comment2.id, model: 'comment', payload: {
+          "id" => comment2.id,
+          "post_id" => post.id,
+          "user_id" => user2.id,
+          "moderating_user_id" => user3.id
+        } }
+      ])
+
+      broadcasts = []
+      comment2.update!(moderating_user_id: user2.id)
+      expect(broadcasts.size).to eq(1)
+      expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
+        { id: comment2.id, model: 'comment', payload: {
+          "id" => comment2.id,
+          "post_id" => post.id,
+          "user_id" => user2.id,
+          "moderating_user_id" => user2.id
+        } }
+      ])
+
+      broadcasts = []
+      comment2.update!(moderating_user_id: nil)
+
+      # It shouldn't remove user2, because this isn't the association referenced in sub config
+      expect(broadcasts.size).to eq(1)
+      expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
+        { id: comment2.id, model: 'comment', payload: {
+          "id" => comment2.id,
+          "post_id" => post.id,
+          "user_id" => user2.id,
+          "moderating_user_id" => nil
+        } }
+      ])
+    end
+
+    it "works when inserting records without callbacks and then manually calling publish_json" do
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      payload = 3.times.map { |i| { id: SecureRandom.uuid, user_id: user1.id, name: "New role #{i+1}", created_at: Time.now.utc, updated_at: Time.now.utc } }
+      Role.insert_all(payload)
+      new_roles = Role.find(payload.map { |row| row[:id] })
+
+      expect(broadcasts.count).to eq(0)
+      new_roles.each(&:force_publish_json)
+
+      expected_broadcasts = new_roles.map do |role|
+        { id: role.id, model: 'role', payload: {
+          "id" => role.id,
+          "user_id" => user1.id,
+          "name" => role.name
+        } }
+      end
+
+      # user3 isn't in the sub, so shouldn't be broadcast
+      ## td: fix bug where they broadcast twice
+      expect(broadcasts.size).to eq(6)
+      expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array(expected_broadcasts + expected_broadcasts)
     end
   end
 end

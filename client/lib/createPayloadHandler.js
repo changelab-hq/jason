@@ -41,7 +41,7 @@ function createPayloadHandler({ dispatch, serverActionQueue, subscription, confi
                 dispatch({ type: `jasonModels/setSubscriptionIds`, payload: { model, subscriptionId, ids } });
             }
             else if (destroy) {
-                dispatch({ type: `${pluralize_1.default(model)}/remove`, payload: id });
+                // Middleware will determine if this model should be removed if it isn't in any other subscriptions
                 dispatch({ type: `jasonModels/removeSubscriptionId`, payload: { model, subscriptionId, id } });
             }
             else {
@@ -87,6 +87,10 @@ function createPayloadHandler({ dispatch, serverActionQueue, subscription, confi
         }
     }
     tGetPayload();
-    return handlePayload;
+    // Clean up after ourselves
+    function tearDown() {
+        dispatch({ type: `jasonModels/removeSubscription`, payload: { subscriptionId } });
+    }
+    return { handlePayload, tearDown };
 }
 exports.default = createPayloadHandler;

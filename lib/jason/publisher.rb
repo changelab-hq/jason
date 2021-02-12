@@ -25,8 +25,15 @@ module Jason::Publisher
     end
   end
 
-  def publish_json(previous_changes)
+  def force_publish_json
+    # As-if newly created
+    publish_json(self.attributes.map { |k,v| [k, [nil, v]] }.to_h)
+  end
+
+  def publish_json(previous_changes = {})
     payload, gidx = cache_json
+
+    return if skip_publish_json
     subs = jason_subscriptions # Get this first, because could be changed
 
     # Situations where IDs may need to change and this can't be immediately determined
@@ -41,7 +48,7 @@ module Jason::Publisher
         Jason::Subscription.update_ids(
           self.class.name.underscore,
           id,
-          assoc.klass.name.underscore,
+          assoc.name.to_s.singularize,
           previous_changes[assoc.foreign_key][0],
           previous_changes[assoc.foreign_key][1]
         )
@@ -49,7 +56,7 @@ module Jason::Publisher
         Jason::Subscription.update_ids(
           self.class.name.underscore,
           id,
-          assoc.klass.name.underscore,
+          assoc.name.to_s.singularize,
           nil,
           send(assoc.foreign_key)
         )
@@ -64,13 +71,11 @@ module Jason::Publisher
     end
 
     # - An instance is created where it belongs_to an _all_ subscription
-    if self.previous_changes['id'].present?
+    if previous_changes['id'].present?
       Jason::Subscription.add_id(self.class.name.underscore, id)
     end
 
-    return if skip_publish_json
-
-    if self.persisted?
+    if persisted?
       jason_subscriptions.each do |sub_id|
         Jason::Subscription.new(id: sub_id).update(self.class.name.underscore, id, payload, gidx)
       end

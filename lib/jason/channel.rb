@@ -53,7 +53,7 @@ class Jason::Channel < ActionCable::Channel::Base
   def get_payload(config, force_refresh = false)
     subscription = Jason::Subscription.upsert_by_config(config['model'], conditions: config['conditions'], includes: config['includes'])
     if force_refresh
-      subscription.set_ids(enforce: true)
+      subscription.set_ids_for_sub_models
     end
     subscription.get.each do |payload|
       transmit(payload) if payload.present?

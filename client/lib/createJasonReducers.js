@@ -53,6 +53,12 @@ function generateJasonSlices(models) {
                 const { payload } = a;
                 const { subscriptionId, model, id } = payload;
                 s[model][subscriptionId] = lodash_1.default.remove(s[model][subscriptionId] || [], id);
+            },
+            removeSubscription(s, a) {
+                const { payload: { subscriptionId } } = a;
+                lodash_1.default.map(models, model => {
+                    delete s[model][subscriptionId];
+                });
             }
         }
     }).reducer;

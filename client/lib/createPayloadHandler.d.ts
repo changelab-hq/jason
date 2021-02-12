@@ -3,4 +3,7 @@ export default function createPayloadHandler({ dispatch, serverActionQueue, subs
     serverActionQueue: any;
     subscription: any;
     config: any;
-}): (data: any) => void;
+}): {
+    handlePayload: (data: any) => void;
+    tearDown: () => void;
+};

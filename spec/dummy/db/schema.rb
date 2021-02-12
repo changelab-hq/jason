@@ -10,10 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2021_02_09_165759) do
+ActiveRecord::Schema.define(version: 2021_02_12_095041) do
 
 # Could not dump table "comments" because of following StandardError
-#   Unknown type 'uuid' for column 'id'
+#   Unknown type '' for column 'id'
 
 # Could not dump table "likes" because of following StandardError
 #   Unknown type 'uuid' for column 'id'
@@ -27,4 +27,5 @@ ActiveRecord::Schema.define(version: 2021_02_09_165759) do
 # Could not dump table "users" because of following StandardError
 #   Unknown type 'uuid' for column 'id'
 
+  add_foreign_key "comments", "users", column: "moderating_user_id"
 end

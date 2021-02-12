@@ -40,9 +40,9 @@ function useJason({ reducers, middleware = [], extraActions }) {
             let subOptions = {};
             function handlePayload(payload) {
                 const { md5Hash } = payload;
-                const handler = payloadHandlers[md5Hash];
-                if (handler) {
-                    handler(payload);
+                const { handlePayload } = payloadHandlers[md5Hash];
+                if (handlePayload) {
+                    handlePayload(payload);
                 }
                 else {
                     console.warn("Payload arrived with no handler", payload, payloadHandlers);
@@ -96,6 +96,7 @@ function useJason({ reducers, middleware = [], extraActions }) {
             function removeSubscription(config) {
                 subscription.send({ removeSubscription: config });
                 const md5Hash = blueimp_md5_1.default(JSON.stringify(config));
+                payloadHandlers[md5Hash].tearDown();
                 delete payloadHandlers[md5Hash];
                 delete configs[md5Hash];
                 delete subOptions[md5Hash];
