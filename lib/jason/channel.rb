@@ -32,6 +32,8 @@ class Jason::Channel < ActionCable::Channel::Base
 
   def create_subscription(model, conditions, includes)
     subscription = Jason::Subscription.upsert_by_config(model, conditions: conditions || {}, includes: includes || nil)
+
+    return if !subscription.user_can_access?(current_user)
     stream_from subscription.channel
 
     subscriptions.push(subscription)
@@ -52,6 +54,8 @@ class Jason::Channel < ActionCable::Channel::Base
 
   def get_payload(config, force_refresh = false)
     subscription = Jason::Subscription.upsert_by_config(config['model'], conditions: config['conditions'], includes: config['includes'])
+
+    return if !subscription.user_can_access?(current_user)
     if force_refresh
       subscription.set_ids_for_sub_models
     end

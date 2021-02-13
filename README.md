@@ -54,7 +54,7 @@ end
 
 First you need to wrap your root component in a `JasonProvider`.
 
-```
+```jsx
 import { JasonProvider } from '@jamesr2323/jason'
 
 return <JasonProvider>
@@ -67,7 +67,8 @@ This is a wrapper around `react-redux` Provider component. This accepts the foll
 - `reducers` - An object of reducers that will be included in `configureStore`. Make sure these do not conflict with the names of any of the models you are configuring for use with Jason
 - `extraActions` - Extra actions you want to be available via the `useAct` hook. (See below)
 This must be a function which returns an object which will be merged with the main Jason actions. The function will be passed a dispatch function, store, axios instance and the Jason actions. For example you can add actions for one of your custom slices:
-```
+
+```js
 function extraActions(dispatch, store, restClient, act) {
   return {
     local: {
@@ -109,7 +110,7 @@ export default function PostCreator() {
 This subscribes your Redux store to a model or set of models. It will automatically unsubscribe when the component unmounts.
 
 Example
-```
+```jsx
 import React from 'react'
 import { useSelector } from 'react-redux'
 import { useSub } from '@jamesr2323/jason'
@@ -125,14 +126,22 @@ export default function PostsList() {
 }
 ```
 
+## Authorization
+
+By default all models can be subscribed to and updated without authentication or authorization. Probably you want to lock down access.
+
+### Authorizing subscriptions
+You can do this by providing an class to Jason in the initializer under the `subscription_authorization_service` key. This must be a class receiving a message `call` with the parameters `user`, `model`, `conditions`, `sub_models` and return true or false for whether the user is allowed to access a subscription with those parameters. You can decide the implementation details of this to be as simple or complex as your app requires.
+
+### Authorizing updates
+Similarly to authorizing subscriptions, you can do this by providing an class to Jason in the initializer under the `update_authorization_service` key. This must be a class receiving a message `call` with the parameters `user`, `model`, `instance`, `update`, `remove` and return true or false for whether the user is allowed to access a subscription with those parameters.
 
 ## Roadmap
 
 Development is primarily driven by the needs of projects we're using Jason in. In no particular order, being considered is:
 - Failure handling - rolling back local state in case of an error on the server
-- Authorization - integrating with a library like Pundit to determine who can subscribe to given state updates and perform updates on models
+- Authorization - more thorough authorization integration, with utility functions for common authorizations. Allowing authorization of access to particular fields such as restricting the fields of a user that are publicly broadcast.
 - Utilities for "Draft editing" - both storing client-side copies of model trees which can be committed or discarded, as well as persisting a shadow copy to the database (to allow resumable editing, or possibly collaborative editing features)
-- Integration with pub/sub-as-a-service tools, such as Pusher
 
 ## Development
 
