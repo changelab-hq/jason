@@ -195,10 +195,6 @@ class Jason::Subscription
     remove_ids(model_name, [id])
   end
 
-  def refresh_ids(assoc_name = model, referrer_model_name = nil, referrer_ids)
-
-  end
-
   # Add IDs that aren't present
   def commit_ids(model_name, ids)
     $redis_jason.sadd("jason:subscriptions:#{id}:ids:#{model_name}", ids)
@@ -347,7 +343,8 @@ class Jason::Subscription
 
   def user_can_access?(user)
     # td: implement the authorization logic here
-    true
+    return true if Jason.authorization_service.blank?
+    Jason.authorization_service.call(user, model, conditions, includes_helper.all_models - [model])
   end
 
   def get

@@ -23,6 +23,7 @@ module Jason
   self.mattr_accessor :pusher_key
   self.mattr_accessor :pusher_region
   self.mattr_accessor :pusher_channel_prefix
+  self.mattr_accessor :authorization_service
 
   self.schema = {}
   self.transport_service = :action_cable
