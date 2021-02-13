@@ -6,6 +6,7 @@ class Jason::Subscription
     if id
       @id = id
       raw_config = $redis_jason.hgetall("jason:subscriptions:#{id}").map { |k,v| [k, JSON.parse(v)] }.to_h
+      raise "Subscription ID #{id} does not exist" if raw_config.blank?
       set_config(raw_config)
     else
       @id = Digest::MD5.hexdigest(config.sort_by { |key| key }.to_h.to_json)

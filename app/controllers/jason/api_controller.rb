@@ -69,9 +69,8 @@ class Jason::ApiController < ::ApplicationController
   private
 
   def load_and_authorize_subscription
-    pp params[:config]
-    pp params[:config][:model]
-    @subscription = Jason::Subscription.upsert_by_config(params[:config][:model], conditions: params[:config][:conditions] || {}, includes: params[:config][:includes] || nil)
+    config = params[:config].to_unsafe_h
+    @subscription = Jason::Subscription.upsert_by_config(config['model'], conditions: config['conditions'], includes: config['includes'])
     if !@subscription.user_can_access?(current_user)
       return head :forbidden
     end
