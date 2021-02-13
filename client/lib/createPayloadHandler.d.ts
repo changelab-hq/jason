@@ -1,7 +1,7 @@
-export default function createPayloadHandler({ dispatch, serverActionQueue, subscription, config }: {
+export default function createPayloadHandler({ dispatch, serverActionQueue, transportAdapter, config }: {
     dispatch: any;
     serverActionQueue: any;
-    subscription: any;
+    transportAdapter: any;
     config: any;
 }): {
     handlePayload: (data: any) => void;

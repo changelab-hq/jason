@@ -1,6 +1,21 @@
 class Jason::ApiController < ::ApplicationController
-  def schema
-    render json: Jason.schema
+  before_action :load_and_authorize_subscription, only: [:create_subscription, :remove_subscription, :get_payload]
+  # config seems to be a reserved name, resulting in infinite loop
+  def configuration
+    payload = {
+      schema: Jason.schema,
+      transportService: Jason.transport_service,
+    }
+
+    if Jason.transport_service == :pusher
+      payload.merge!({
+        pusherKey: Jason.pusher_key,
+        pusherRegion: Jason.pusher_region,
+        pusherChannelPrefix: Jason.pusher_channel_prefix
+      })
+    end
+
+    render json: payload
   end
 
   def action
@@ -32,5 +47,33 @@ class Jason::ApiController < ::ApplicationController
     end
 
     return head :ok
+  end
+
+  def create_subscription
+    @subscription.add_consumer(params[:consumer_id])
+    render json: { channelName: @subscription.channel }
+  end
+
+  def remove_subscription
+    @subscription.remove_consumer(params[:consumer_id])
+  end
+
+  def get_payload
+    if params[:options].try(:[], :force_refresh)
+      @subscription.set_ids_for_sub_models
+    end
+
+    render json: @subscription.get
+  end
+
+  private
+
+  def load_and_authorize_subscription
+    pp params[:config]
+    pp params[:config][:model]
+    @subscription = Jason::Subscription.upsert_by_config(params[:config][:model], conditions: params[:config][:conditions] || {}, includes: params[:config][:includes] || nil)
+    if !@subscription.user_can_access?(current_user)
+      return head :forbidden
+    end
   end
 end

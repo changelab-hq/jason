@@ -11,7 +11,7 @@ function diffSeconds(dt2, dt1) {
     var diff = (dt2.getTime() - dt1.getTime()) / 1000;
     return Math.abs(Math.round(diff));
 }
-function createPayloadHandler({ dispatch, serverActionQueue, subscription, config }) {
+function createPayloadHandler({ dispatch, serverActionQueue, transportAdapter, config }) {
     const subscriptionId = uuid_1.v4();
     let idx = {};
     let patchQueue = {};
@@ -19,7 +19,7 @@ function createPayloadHandler({ dispatch, serverActionQueue, subscription, confi
     let updateDeadline = null;
     let checkInterval;
     function getPayload() {
-        setTimeout(() => subscription.send({ getPayload: config }), 1000);
+        setTimeout(() => transportAdapter.getPayload(config), 1000);
     }
     function camelizeKeys(item) {
         return deepCamelizeKeys_1.default(item, key => uuid_1.validate(key));

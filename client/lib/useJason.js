@@ -10,7 +10,7 @@ const createOptDis_1 = __importDefault(require("./createOptDis"));
 const createServerActionQueue_1 = __importDefault(require("./createServerActionQueue"));
 const restClient_1 = __importDefault(require("./restClient"));
 const pruneIdsMiddleware_1 = __importDefault(require("./pruneIdsMiddleware"));
-const actioncable_1 = require("@rails/actioncable");
+const createTransportAdapter_1 = __importDefault(require("./createTransportAdapter"));
 const toolkit_1 = require("@reduxjs/toolkit");
 const makeEager_1 = __importDefault(require("./makeEager"));
 const humps_1 = require("humps");
@@ -20,14 +20,13 @@ const react_1 = require("react");
 function useJason({ reducers, middleware = [], extraActions }) {
     const [store, setStore] = react_1.useState(null);
     const [value, setValue] = react_1.useState(null);
-    const [connected, setConnected] = react_1.useState(false);
     react_1.useEffect(() => {
-        restClient_1.default.get('/jason/api/schema')
-            .then(({ data: snakey_schema }) => {
+        restClient_1.default.get('/jason/api/config')
+            .then(({ data: jasonConfig }) => {
+            const { schema: snakey_schema } = jasonConfig;
             const schema = humps_1.camelizeKeys(snakey_schema);
             console.debug({ schema });
             const serverActionQueue = createServerActionQueue_1.default();
-            const consumer = actioncable_1.createConsumer();
             const allReducers = Object.assign(Object.assign({}, reducers), createJasonReducers_1.default(schema));
             console.debug({ allReducers });
             const store = toolkit_1.configureStore({ reducer: allReducers, middleware: [...middleware, pruneIdsMiddleware_1.default(schema)] });
@@ -48,41 +47,21 @@ function useJason({ reducers, middleware = [], extraActions }) {
                     console.warn("Payload arrived with no handler", payload, payloadHandlers);
                 }
             }
-            const subscription = (consumer.subscriptions.create({
-                channel: 'Jason::Channel'
-            }, {
-                connected: () => {
-                    setConnected(true);
-                    dispatch({ type: 'jason/upsert', payload: { connected: true } });
-                    console.debug('Connected to ActionCable');
-                    // When AC loses connection - all state is lost, so we need to re-initialize all subscriptions
-                    lodash_1.default.keys(configs).forEach(md5Hash => createSubscription(configs[md5Hash], subOptions[md5Hash]));
-                },
-                received: payload => {
-                    handlePayload(payload);
-                    console.debug("ActionCable Payload received: ", payload);
-                },
-                disconnected: () => {
-                    setConnected(false);
-                    dispatch({ type: 'jason/upsert', payload: { connected: false } });
-                    console.warn('Disconnected from ActionCable');
-                }
-            }));
+            const transportAdapter = createTransportAdapter_1.default(jasonConfig, handlePayload, dispatch, () => lodash_1.default.keys(configs).forEach(md5Hash => createSubscription(configs[md5Hash], subOptions[md5Hash])));
             function createSubscription(config, options = {}) {
                 // We need the hash to be consistent in Ruby / Javascript
                 const hashableConfig = lodash_1.default(Object.assign({ conditions: {}, includes: {} }, config)).toPairs().sortBy(0).fromPairs().value();
                 const md5Hash = blueimp_md5_1.default(JSON.stringify(hashableConfig));
-                payloadHandlers[md5Hash] = createPayloadHandler_1.default({ dispatch, serverActionQueue, subscription, config });
+                payloadHandlers[md5Hash] = createPayloadHandler_1.default({ dispatch, serverActionQueue, transportAdapter, config });
                 configs[md5Hash] = hashableConfig;
                 subOptions[md5Hash] = options;
-                setTimeout(() => subscription.send({ createSubscription: hashableConfig }), 500);
+                setTimeout(() => transportAdapter.createSubscription(hashableConfig), 500);
                 let pollInterval = null;
-                console.log("createSubscription", { config, options });
                 // This is only for debugging / dev - not prod!
                 // @ts-ignore
                 if (options.pollInterval) {
                     // @ts-ignore
-                    pollInterval = setInterval(() => subscription.send({ getPayload: config, forceRefresh: true }), options.pollInterval);
+                    pollInterval = setInterval(() => transportAdapter.getPayload(hashableConfig, { forceRefresh: true }), options.pollInterval);
                 }
                 return {
                     remove() {
@@ -94,7 +73,7 @@ function useJason({ reducers, middleware = [], extraActions }) {
                 };
             }
             function removeSubscription(config) {
-                subscription.send({ removeSubscription: config });
+                transportAdapter.removeSubscription(config);
                 const md5Hash = blueimp_md5_1.default(JSON.stringify(config));
                 payloadHandlers[md5Hash].tearDown();
                 delete payloadHandlers[md5Hash];
@@ -110,6 +89,6 @@ function useJason({ reducers, middleware = [], extraActions }) {
             setStore(store);
         });
     }, []);
-    return [store, value, connected];
+    return [store, value];
 }
 exports.default = useJason;

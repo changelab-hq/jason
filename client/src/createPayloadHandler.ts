@@ -9,7 +9,7 @@ function diffSeconds(dt2, dt1) {
   return Math.abs(Math.round(diff))
 }
 
-export default function createPayloadHandler({ dispatch, serverActionQueue, subscription, config }) {
+export default function createPayloadHandler({ dispatch, serverActionQueue, transportAdapter, config }) {
   const subscriptionId = uuidv4()
 
   let idx = {}
@@ -20,7 +20,7 @@ export default function createPayloadHandler({ dispatch, serverActionQueue, subs
   let checkInterval
 
   function getPayload() {
-    setTimeout(() => subscription.send({ getPayload: config }), 1000)
+    setTimeout(() => transportAdapter.getPayload(config), 1000)
   }
 
   function camelizeKeys(item) {

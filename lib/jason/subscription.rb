@@ -17,6 +17,10 @@ class Jason::Subscription
     check_for_missing_keys
   end
 
+  def broadcaster
+    @broadcaster ||= Jason::Broadcaster.new(channel)
+  end
+
   def check_for_missing_keys
     missing_keys = includes_helper.all_models - Jason.schema.keys.map(&:to_s)
     if missing_keys.present?
@@ -337,11 +341,16 @@ class Jason::Subscription
   end
 
   def channel
-    "jason:#{id}"
+    "jason-#{id}"
+  end
+
+  def user_can_access?(user)
+    # td: implement the authorization logic here
+    true
   end
 
   def get
-    includes_helper.all_models.map { |model_name| get_for_model(model_name) }.compact
+    includes_helper.all_models.map { |model_name| [model_name, get_for_model(model_name)] }.to_h
   end
 
   def get_for_model(model_name)
@@ -382,7 +391,7 @@ class Jason::Subscription
       idx: idx.to_i
     }
 
-    ActionCable.server.broadcast(channel, payload)
+    broadcaster.broadcast(payload)
   end
 
   def update(model_name, instance_id, payload, gidx)
@@ -397,7 +406,7 @@ class Jason::Subscription
       idx: idx.to_i
     }
 
-    ActionCable.server.broadcast(channel, payload)
+    broadcaster.broadcast(payload)
   end
 
   def destroy(model_name, instance_id)
@@ -411,6 +420,6 @@ class Jason::Subscription
       idx: idx.to_i
     }
 
-    ActionCable.server.broadcast(channel, payload)
+    broadcaster.broadcast(payload)
   end
 end

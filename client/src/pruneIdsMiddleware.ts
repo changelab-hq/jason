@@ -4,16 +4,17 @@ import pluralize from 'pluralize'
 const pruneIdsMiddleware = schema => store => next => action => {
   const { type, payload } = action
   const result = next(action)
+
   const state = store.getState()
   if (type === 'jasonModels/setSubscriptionIds' || type === 'jasonModels/removeSubscriptionIds') {
-    const { model } = payload
+    const { model, ids } = payload
 
-    let ids = []
+    let idsInSubs = []
     _.map(state.jasonModels[model], (subscribedIds, k) => {
-      ids = _.union(ids, subscribedIds)
+      idsInSubs = _.union(idsInSubs, subscribedIds)
     })
     // Find IDs currently in Redux that aren't in any subscription
-    const idsToRemove = _.difference(state[pluralize(model)].ids, ids)
+    const idsToRemove = _.difference(state[pluralize(model)].ids, idsInSubs)
     store.dispatch({ type: `${pluralize(model)}/removeMany`, payload: idsToRemove })
   }
 

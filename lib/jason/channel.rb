@@ -55,7 +55,7 @@ class Jason::Channel < ActionCable::Channel::Base
     if force_refresh
       subscription.set_ids_for_sub_models
     end
-    subscription.get.each do |payload|
+    subscription.get.each do |model_name, payload|
       transmit(payload) if payload.present?
     end
   end

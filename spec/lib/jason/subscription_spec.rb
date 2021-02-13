@@ -273,7 +273,7 @@ RSpec.describe Jason::Subscription do
     end
 
     it "broadcasts on update" do
-      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", {
+      expect(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", {
         :id=>post.id,
         :model=>"post",
         :payload=>{"id"=>post.id, "name"=>"Test"},
@@ -282,7 +282,7 @@ RSpec.describe Jason::Subscription do
       )
       post.update!(name: 'Test')
 
-      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", {
+      expect(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", {
         :id=>post.id,
         :model=>"post",
         :payload=>{"id"=>post.id, "name"=>"Test me out"},
@@ -309,8 +309,8 @@ RSpec.describe Jason::Subscription do
       message2 = message.clone
       message2[:idx] = 2
 
-      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", message)
-      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", message2)
+      expect(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", message)
+      expect(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", message2)
 
       post.comments.create!(id: new_comment_id, body: "Hello", user: User.first)
     end
@@ -318,7 +318,7 @@ RSpec.describe Jason::Subscription do
     it "broadcasts on destroy" do
       broadcasts = []
 
-      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
         broadcasts.push({ sub_id: sub_id, message: message })
       end
 
@@ -335,8 +335,9 @@ RSpec.describe Jason::Subscription do
     end
 
     context "getting subscriptions" do
-      it "gets all the models in the sub" do
-        expect(subscription.get).to include({
+      it "gets all the models in the sub
+      " do
+        expect(subscription.get['comment']).to include({
           idx: 0,
           md5Hash: subscription.id,
           model: 'comment',
@@ -377,7 +378,7 @@ RSpec.describe Jason::Subscription do
     it "sends the correct payloads in response to changes" do
       role2_2_id = SecureRandom.uuid
 
-      expect(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", {
+      expect(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", {
         :id=>role2_2_id,
         :model=>"role",
         :payload=>{
@@ -393,7 +394,7 @@ RSpec.describe Jason::Subscription do
     it "works when removing a tree" do
       broadcasts = []
 
-      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
         broadcasts.push({ sub_id: sub_id, message: message })
       end
 
@@ -410,7 +411,7 @@ RSpec.describe Jason::Subscription do
     it "works when removing a tree with one-many children" do
       broadcasts = []
 
-      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
         broadcasts.push({ sub_id: sub_id, message: message })
       end
 
@@ -428,7 +429,7 @@ RSpec.describe Jason::Subscription do
     it "works when removing a subtree" do
       broadcasts = []
 
-      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
         broadcasts.push({ sub_id: sub_id, message: message })
       end
 
@@ -445,7 +446,7 @@ RSpec.describe Jason::Subscription do
     it "works when nulling a subtree" do
       broadcasts = []
 
-      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
         broadcasts.push({ sub_id: sub_id, message: message })
       end
 
@@ -468,7 +469,7 @@ RSpec.describe Jason::Subscription do
     it "works when moving a subtree" do
       broadcasts = []
 
-      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
         broadcasts.push({ sub_id: sub_id, message: message })
       end
 
@@ -486,7 +487,7 @@ RSpec.describe Jason::Subscription do
     it "works when moving a subtree child" do
       broadcasts = []
 
-      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
         broadcasts.push({ sub_id: sub_id, message: message })
       end
 
@@ -506,7 +507,7 @@ RSpec.describe Jason::Subscription do
 
     it "works when modifying an association sharing same class as an assocition in the subscription" do
       broadcasts = []
-      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
         broadcasts.push({ sub_id: sub_id, message: message })
       end
 
@@ -552,7 +553,7 @@ RSpec.describe Jason::Subscription do
 
     it "works when inserting records without callbacks and then manually calling publish_json" do
       broadcasts = []
-      allow(ActionCable.server).to receive(:broadcast).with("jason:#{subscription.id}", anything) do |sub_id, message|
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
         broadcasts.push({ sub_id: sub_id, message: message })
       end
 

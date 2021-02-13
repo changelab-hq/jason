@@ -8,7 +8,7 @@ const useJason_1 = __importDefault(require("./useJason"));
 const react_redux_1 = require("react-redux");
 const JasonContext_1 = __importDefault(require("./JasonContext"));
 const JasonProvider = ({ reducers, middleware, extraActions, children }) => {
-    const [store, value, connected] = useJason_1.default({ reducers, middleware, extraActions });
+    const [store, value] = useJason_1.default({ reducers, middleware, extraActions });
     if (!(store && value))
         return react_1.default.createElement("div", null); // Wait for async fetch of schema to complete
     return react_1.default.createElement(react_redux_1.Provider, { store: store },

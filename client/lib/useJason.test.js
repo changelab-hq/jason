@@ -17,7 +17,10 @@ const useJason_1 = __importDefault(require("./useJason"));
 const restClient_1 = __importDefault(require("./restClient"));
 jest.mock('./restClient');
 test('it works', () => __awaiter(void 0, void 0, void 0, function* () {
-    const resp = { data: { post: {} } };
+    const resp = { data: {
+            schema: { post: {} },
+            transportService: 'action_cable'
+        } };
     // @ts-ignore
     restClient_1.default.get.mockResolvedValue(resp);
     const { result, waitForNextUpdate } = react_hooks_1.renderHook(() => useJason_1.default({ reducers: {
@@ -50,7 +53,10 @@ test('it works', () => __awaiter(void 0, void 0, void 0, function* () {
     });
 }));
 test('pruning IDs', () => __awaiter(void 0, void 0, void 0, function* () {
-    const resp = { data: { post: {} } };
+    const resp = { data: {
+            schema: { post: {} },
+            transportService: 'action_cable'
+        } };
     // @ts-ignore
     restClient_1.default.get.mockResolvedValue(resp);
     const { result, waitForNextUpdate } = react_hooks_1.renderHook(() => useJason_1.default({ reducers: {

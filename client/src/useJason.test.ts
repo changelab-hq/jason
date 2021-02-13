@@ -5,7 +5,10 @@ import restClient from './restClient'
 jest.mock('./restClient')
 
 test('it works', async () => {
-  const resp = { data: { post: {} } };
+  const resp = { data: {
+    schema: { post: {} },
+    transportService: 'action_cable'
+  } };
   // @ts-ignore
   restClient.get.mockResolvedValue(resp);
 
@@ -45,7 +48,10 @@ test('it works', async () => {
 })
 
 test('pruning IDs', async () => {
-  const resp = { data: { post: {} } };
+  const resp = { data: {
+    schema: { post: {} },
+    transportService: 'action_cable'
+  } };
 
   // @ts-ignore
   restClient.get.mockResolvedValue(resp);
