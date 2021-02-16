@@ -1,6 +1,7 @@
 /// <reference types="react" />
 import _useAct from './useAct';
 import _useSub from './useSub';
+import _useEager from './useEager';
 export declare const JasonProvider: ({ reducers, middleware, extraActions, children }: {
     reducers?: any;
     middleware?: any;
@@ -9,3 +10,4 @@ export declare const JasonProvider: ({ reducers, middleware, extraActions, child
 }) => JSX.Element;
 export declare const useAct: typeof _useAct;
 export declare const useSub: typeof _useSub;
+export declare const useEager: typeof _useEager;

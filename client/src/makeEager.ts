@@ -36,9 +36,9 @@ export default function (schema) {
 
   function useEager(entity, id = null, relations = []) {
     if (id) {
-      return useSelector(s => addRelations(s, { ...s[entity].entities[String(id)] }, entity, relations))
+      return useSelector(s => addRelations(s, { ...s[entity].entities[String(id)] }, entity, relations), _.isEqual)
     } else {
-      return useSelector(s => addRelations(s, _.values(s[entity].entities), entity, relations))
+      return useSelector(s => addRelations(s, _.values(s[entity].entities), entity, relations), _.isEqual)
     }
   }
 

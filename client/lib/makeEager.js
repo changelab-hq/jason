@@ -40,10 +40,10 @@ function default_1(schema) {
     }
     function useEager(entity, id = null, relations = []) {
         if (id) {
-            return react_redux_1.useSelector(s => addRelations(s, Object.assign({}, s[entity].entities[String(id)]), entity, relations));
+            return react_redux_1.useSelector(s => addRelations(s, Object.assign({}, s[entity].entities[String(id)]), entity, relations), lodash_1.default.isEqual);
         }
         else {
-            return react_redux_1.useSelector(s => addRelations(s, lodash_1.default.values(s[entity].entities), entity, relations));
+            return react_redux_1.useSelector(s => addRelations(s, lodash_1.default.values(s[entity].entities), entity, relations), lodash_1.default.isEqual);
         }
     }
     return useEager;
