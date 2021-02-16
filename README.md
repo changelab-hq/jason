@@ -81,7 +81,7 @@ function extraActions(dispatch, store, restClient, act) {
 - `middleware` - Passed directly to `configureStore` with additional Jason middleware
 
 ## Usage
-Jason provides two custom hooks to access functionality.
+Jason provides three custom hooks to access functionality.
 
 ### useAct
 This returns an object which allows you to access actions which both update models on the server, and perform an optimistic update to the Redux store.
@@ -122,6 +122,28 @@ export default function PostsList() {
 
   return <div>
     { posts.map(({ id, name }) => <div key={id}>{ name }</div>) }
+  </div>
+}
+```
+
+### useEager
+Jason stores all the data in a normalized form - one redux slice per model. Often you might want to get nested data from several slices for use in components. The `useEager` hook provides an API for doing that. Under the hood it's just a wrapper around useSelector, which aims to mimic the behaviour of Rails eager loading.
+
+Example
+This will fetch the comment as well as the post and user linked to it.
+
+```jsx
+import React from 'react'
+import { useSelector } from 'react-redux'
+import { useEager } from '@jamesr2323/jason'
+import _ from 'lodash'
+
+export default function Comment({ id }) {
+  const comment = useEager('comments', id, ['post', 'user'])
+
+  return <div>
+    <p>{ comment.body }</p>
+    <p>Made on post { comment.post.name } by { comment.user.name }</p>
   </div>
 }
 ```
