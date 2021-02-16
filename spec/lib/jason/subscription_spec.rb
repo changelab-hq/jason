@@ -335,8 +335,7 @@ RSpec.describe Jason::Subscription do
     end
 
     context "getting subscriptions" do
-      it "gets all the models in the sub
-      " do
+      it "gets all the models in the sub" do
         expect(subscription.get['comment']).to include({
           idx: 0,
           md5Hash: subscription.id,
@@ -345,6 +344,18 @@ RSpec.describe Jason::Subscription do
             a_hash_including({ 'id' => comment1.id }),
             a_hash_including({ 'id' => comment2.id })
           ]),
+          type: 'payload'
+        })
+      end
+
+      it "returns an empty array if there are no instances in the sub" do
+        Comment.destroy_all
+
+        expect(subscription.get['comment']).to include({
+          idx: 2, # two broadcasts have been made because of deleting two comments
+          md5Hash: subscription.id,
+          model: 'comment',
+          payload: [],
           type: 'payload'
         })
       end

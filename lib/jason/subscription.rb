@@ -362,8 +362,6 @@ class Jason::Subscription
       instance_jsons, idx = Jason::LuaGenerator.new.get_payload(model_name, id)
     end
 
-    return if instance_jsons.blank?
-
     payload = instance_jsons.map do |instance_json|
       instance_json ? JSON.parse(instance_json) : {}
     end

@@ -91,6 +91,10 @@ module Jason::Publisher
     Jason::Subscription.for_instance(self.class.name.underscore, id)
   end
 
+  def jason_cached_value
+    JSON.parse($redis_jason.hget("jason:cache:#{self.class.name.underscore}", id) || '{}')
+  end
+
   class_methods do
     def cache_all
       all.each(&:cache_json)

@@ -142,6 +142,7 @@ Development is primarily driven by the needs of projects we're using Jason in. I
 - Failure handling - rolling back local state in case of an error on the server
 - Authorization - more thorough authorization integration, with utility functions for common authorizations. Allowing authorization of access to particular fields such as restricting the fields of a user that are publicly broadcast.
 - Utilities for "Draft editing" - both storing client-side copies of model trees which can be committed or discarded, as well as persisting a shadow copy to the database (to allow resumable editing, or possibly collaborative editing features)
+- Benchmark and migrate if necessary ConnectionPool::Wrapper vs ConnectionPool
 
 ## Development
 
