@@ -1,6 +1,6 @@
 # Jason
 
-Jason is still in a highly experimental phase with a rapidly changing API. Production use not recommended - but please give it a try!
+Jason is still in an experimental phase with a rapidly changing API. It is being used in some production applications, however it is still in 0.x.x series versions, which means that any 0.x version bump could introduce breaking changes.
 
 ## The goal
 
@@ -13,6 +13,8 @@ I wanted:
 I also wanted to avoid writing essentially the same code multiple times in different places to handle common CRUD-like operations. Combine Rails schema definition files, REST endpoints, Redux actions, stores, reducers, handlers for websocket payloads and the translations between them, and it adds up to tons of repetitive boilerplate. Every change to the data schema requires updates in five or six files. This inhibits refactoring and makes mistakes more likely.
 
 Jason attempts to minimize this repitition by auto-generating API endpoints, redux stores and actions from a single schema definition. Further it adds listeners to ActiveRecord models allowing the redux store to be subscribed to updates from a model or set of models.
+
+An alternative way of thinking about Jason is "what if we applied the Flux/Redux state update pattern to make the _database_ the store?".
 
 ## Installation
 

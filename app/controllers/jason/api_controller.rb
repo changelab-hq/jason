@@ -35,10 +35,10 @@ class Jason::ApiController < ::ApplicationController
       all_instance_ids.insert(priority.to_i, instance.id)
 
       all_instance_ids.each_with_index do |id, i|
-        model.find(id).update!(priority: i, skip_publish_json: true)
+        model.find(id).update!(priority: i)
       end
 
-      model.publish_all(model.find(all_instance_ids))
+      model.find(all_instance_ids).each(&:force_publish_json)
     elsif action == 'upsert' || action == 'add'
       payload = api_model.permit(params)
       return render json: model.find_or_create_by_id!(payload).as_json(api_model.as_json_config)
