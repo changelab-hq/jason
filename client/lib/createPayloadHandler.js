@@ -36,7 +36,7 @@ function createPayloadHandler({ dispatch, serverActionQueue, transportAdapter, c
             }
             const { payload, destroy, id, type } = patchQueue[model][idx[model]];
             if (type === 'payload') {
-                dispatch({ type: `${pluralize_1.default(model)}/upsertMany`, payload });
+                dispatch({ type: `${pluralize_1.default(model)}/upsertMany`, payload: payload.map(m => (Object.assign(Object.assign({}, m), { id: String(m.id) }))) });
                 const ids = payload.map(instance => instance.id);
                 dispatch({ type: `jasonModels/setSubscriptionIds`, payload: { model, subscriptionId, ids } });
             }
@@ -45,7 +45,7 @@ function createPayloadHandler({ dispatch, serverActionQueue, transportAdapter, c
                 dispatch({ type: `jasonModels/removeSubscriptionId`, payload: { model, subscriptionId, id } });
             }
             else {
-                dispatch({ type: `${pluralize_1.default(model)}/upsert`, payload });
+                dispatch({ type: `${pluralize_1.default(model)}/upsert`, payload: Object.assign(Object.assign({}, payload), { id: String(payload.id) }) });
                 dispatch({ type: `jasonModels/addSubscriptionId`, payload: { model, subscriptionId, id } });
             }
             delete patchQueue[model][idx[model]];

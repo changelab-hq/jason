@@ -42,14 +42,14 @@ export default function createPayloadHandler({ dispatch, serverActionQueue, tran
       const { payload, destroy, id, type } = patchQueue[model][idx[model]]
 
       if (type === 'payload') {
-        dispatch({ type: `${pluralize(model)}/upsertMany`, payload })
+        dispatch({ type: `${pluralize(model)}/upsertMany`, payload: payload.map(m => ({ ...m, id: String(m.id) })) })
         const ids = payload.map(instance => instance.id)
         dispatch({ type: `jasonModels/setSubscriptionIds`, payload: { model, subscriptionId, ids }})
       } else if (destroy) {
         // Middleware will determine if this model should be removed if it isn't in any other subscriptions
         dispatch({ type: `jasonModels/removeSubscriptionId`, payload: { model, subscriptionId, id }})
       } else {
-        dispatch({ type: `${pluralize(model)}/upsert`, payload })
+        dispatch({ type: `${pluralize(model)}/upsert`, payload: { ...payload, id: String(payload.id) } })
         dispatch({ type: `jasonModels/addSubscriptionId`, payload: { model, subscriptionId, id }})
       }
 

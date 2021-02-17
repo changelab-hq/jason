@@ -42,18 +42,17 @@ function generateJasonSlices(models) {
       setSubscriptionIds(s,a) {
         const { payload } = a
         const { subscriptionId, model, ids } = payload
-        console.log({ initialState })
-        s[model][subscriptionId] = ids
+        s[model][subscriptionId] = ids.map(id => String(id))
       },
       addSubscriptionId(s,a) {
         const { payload } = a
         const { subscriptionId, model, id } = payload
-        s[model][subscriptionId] = _.union(s[model][subscriptionId] || [], [id])
+        s[model][subscriptionId] = _.union(s[model][subscriptionId] || [], [String(id)])
       },
       removeSubscriptionId(s,a) {
         const { payload } = a
         const { subscriptionId, model, id } = payload
-        s[model][subscriptionId] = _.remove(s[model][subscriptionId] || [], id)
+        s[model][subscriptionId] = _.difference(s[model][subscriptionId] || [], [String(id)])
       },
       removeSubscription(s, a) {
         const { payload: { subscriptionId } } = a

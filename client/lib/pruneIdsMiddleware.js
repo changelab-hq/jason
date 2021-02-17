@@ -9,7 +9,7 @@ const pruneIdsMiddleware = schema => store => next => action => {
     const { type, payload } = action;
     const result = next(action);
     const state = store.getState();
-    if (type === 'jasonModels/setSubscriptionIds' || type === 'jasonModels/removeSubscriptionIds') {
+    if (type === 'jasonModels/setSubscriptionIds' || type === 'jasonModels/removeSubscriptionId') {
         const { model, ids } = payload;
         let idsInSubs = [];
         lodash_1.default.map(state.jasonModels[model], (subscribedIds, k) => {

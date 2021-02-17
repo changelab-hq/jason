@@ -81,5 +81,37 @@ test('pruning IDs', () => __awaiter(void 0, void 0, void 0, function* () {
         idx: 2
     });
     // The ID 4 should have been pruned
-    expect(store.getState().posts.ids).toStrictEqual([5]);
+    expect(store.getState().posts.ids).toStrictEqual(['5']);
+}));
+test('pruning IDs by destroy', () => __awaiter(void 0, void 0, void 0, function* () {
+    const resp = { data: {
+            schema: { post: {} },
+            transportService: 'action_cable'
+        } };
+    // @ts-ignore
+    restClient_1.default.get.mockResolvedValue(resp);
+    const { result, waitForNextUpdate } = react_hooks_1.renderHook(() => useJason_1.default({ reducers: {
+            test: (s, a) => s || {}
+        } }));
+    yield waitForNextUpdate();
+    const [store, value, connected] = result.current;
+    const { handlePayload, subscribe } = value;
+    const subscription = subscribe({ post: {} });
+    handlePayload({
+        type: 'payload',
+        model: 'post',
+        payload: [{ id: 4, name: 'test' }, { id: 5, name: 'test it out' }],
+        md5Hash: subscription.md5Hash,
+        idx: 1
+    });
+    expect(store.getState().posts.ids).toStrictEqual(['4', '5']);
+    handlePayload({
+        destroy: true,
+        model: 'post',
+        id: 5,
+        md5Hash: subscription.md5Hash,
+        idx: 2
+    });
+    // The ID 4 should have been pruned
+    expect(store.getState().posts.ids).toStrictEqual(['4']);
 }));
