@@ -31,6 +31,9 @@ module Jason
   self.pusher_channel_prefix = 'jason'
 
   def self.init
+    # Don't run in AR migration / generator etc.
+    return if $PROGRAM_NAME == '-e' || ActiveRecord::Base.connection.migration_context.needs_migration?
+
     # Check if the schema has changed since last time app was started. If so, do some work to ensure cache contains the correct data
     got_lock = $redis_jason.set('jason:schema:lock', nx: true, ex: 3600) # Basic lock mechanism for multi-process environments
     return if !got_lock
@@ -51,8 +54,6 @@ module Jason
     $redis_jason.set('jason:last_schema', current_schema.to_json)
   ensure
     $redis_jason.del('jason:schema:lock')
-
-    previous_config = 'test'
   end
 
 
