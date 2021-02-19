@@ -37,7 +37,6 @@ module Jason
 
     previous_schema = JSON.parse($redis_jason.get('jason:last_schema') || '{}')
     current_schema = Jason.schema.deep_stringify_keys.deep_transform_values { |v| v.is_a?(Symbol) ? v.to_s : v }
-    pp current_schema
     current_schema.each do |model, config|
       if config != previous_schema[model]
         puts "Config changed for #{model}"

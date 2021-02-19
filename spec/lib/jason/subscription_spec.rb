@@ -588,5 +588,31 @@ RSpec.describe Jason::Subscription do
       expect(broadcasts.size).to eq(6)
       expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array(expected_broadcasts + expected_broadcasts)
     end
+
+    it "broadcasts on reset" do
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      subscription.reset!
+
+      expect(broadcasts.count).to eq(4)
+      expect(broadcasts.all? { |b| b[:message][:type] == 'payload' }).to be(true)
+      expect(broadcasts.map{ |b| b[:message][:model]}).to match_array(['post', 'comment', 'user', 'role'])
+    end
+
+    it "broadcasts on hard reset" do
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      subscription.reset!(hard: true)
+
+      expect(broadcasts.count).to eq(4)
+      expect(broadcasts.all? { |b| b[:message][:type] == 'payload' }).to be(true)
+      expect(broadcasts.map{ |b| b[:message][:model]}).to match_array(['post', 'comment', 'user', 'role'])
+    end
   end
 end

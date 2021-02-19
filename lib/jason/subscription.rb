@@ -269,7 +269,8 @@ class Jason::Subscription
 
     # Build the tree
     id_changeset = graph_helper.apply_update({
-      add: [edge_set]
+      add: [edge_set],
+      enforce: enforce
     })
     apply_id_changeset(id_changeset)
   end
@@ -320,7 +321,7 @@ class Jason::Subscription
     $redis_jason.hset("jason:consumers", consumer_id, Time.now.utc)
 
     if before_consumer_count == 0
-      set_ids_for_sub_models
+      set_ids_for_sub_models(enforce: true)
     end
   end
 
@@ -373,6 +374,20 @@ class Jason::Subscription
       md5Hash: id,
       idx: idx.to_i
     }
+  end
+
+  # To be used as a fallback when some corruption of the subscription has taken place
+  def reset!(hard: false)
+    # Remove subscription state
+    if hard
+      clear_all_ids
+      $redis_jason.del("jason:subscriptions:#{id}:graph")
+    end
+
+    set_ids_for_sub_models(enforce: true)
+    includes_helper.all_models.each do |model_name|
+      broadcaster.broadcast(get_for_model(model_name))
+    end
   end
 
   def add(model_name, instance_id)

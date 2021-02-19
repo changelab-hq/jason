@@ -33,7 +33,8 @@ class Jason::GraphHelper
   end
 
   # Add and remove edges, return graph before and after
-  def apply_update(add: nil, remove: nil)
+  # Enforce means make the graph contain only the add_edges
+  def apply_update(add: nil, remove: nil, enforce: false)
     add_edges = []
     remove_edges = []
 
@@ -48,11 +49,21 @@ class Jason::GraphHelper
         remove_edges += build_edges(edge_set[:model_names], edge_set[:instance_ids], include_root: false)
       end
     end
-    diff_edges_from_graph(add_edges: add_edges, remove_edges: remove_edges)
+
+    diff_edges_from_graph(add_edges: add_edges, remove_edges: remove_edges, enforce: enforce)
   end
 
-  def diff_edges_from_graph(add_edges: [], remove_edges: [])
-    old_edges, new_edges = Jason::LuaGenerator.new.update_set_with_diff("jason:subscriptions:#{id}:graph", add_edges.flatten, remove_edges.flatten)
+  def diff_edges_from_graph(add_edges: [], remove_edges: [], enforce: false)
+    if enforce
+      old_edges = $redis_jason.multi do |r|
+        r.smembers("jason:subscriptions:#{id}:graph")
+        r.del("jason:subscriptions:#{id}:graph")
+        r.sadd("jason:subscriptions:#{id}:graph", add_edges) if add_edges.present?
+      end[0]
+      new_edges = add_edges
+    else
+      old_edges, new_edges = Jason::LuaGenerator.new.update_set_with_diff("jason:subscriptions:#{id}:graph", add_edges.flatten, remove_edges.flatten)
+    end
 
     old_graph = build_graph_from_edges(old_edges)
     new_graph = build_graph_from_edges(new_edges)
