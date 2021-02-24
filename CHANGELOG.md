@@ -1,3 +1,7 @@
+## v0.6.7
+- Fix: Change names of controllers to be less likely to conflict with host app inflections
+- Added: Pusher now pushes asychronously via Sidekiq using the Pusher batch API
+
 ## v0.6.6
 - Fix: don't run the schema change detection and cache rebuild inside rake tasks or migrations
 
