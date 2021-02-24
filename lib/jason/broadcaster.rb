@@ -13,7 +13,8 @@ class Jason::Broadcaster
     if Jason.transport_service == :action_cable
       ActionCable.server.broadcast(channel, message)
     elsif Jason.transport_service == :pusher
-      Jason.pusher.trigger(pusher_channel_name, 'changed', message)
+      $redis_jason.rpush("jason:outbound_message_queue", { channel: pusher_channel_name, name: 'changed', data: message }.to_json)
+      Jason::OutboundMessageQueueWorker.perform_async
     end
   end
 end

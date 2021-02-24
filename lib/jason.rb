@@ -24,11 +24,13 @@ module Jason
   self.mattr_accessor :pusher_region
   self.mattr_accessor :pusher_channel_prefix
   self.mattr_accessor :authorization_service
+  self.mattr_accessor :sidekiq_queue
 
   self.schema = {}
   self.transport_service = :action_cable
   self.pusher_region = 'eu'
   self.pusher_channel_prefix = 'jason'
+  self.sidekiq_queue = 'default'
 
   def self.init
     # Don't run in AR migration / generator etc.
