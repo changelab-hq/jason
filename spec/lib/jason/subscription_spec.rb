@@ -251,6 +251,56 @@ RSpec.describe Jason::Subscription do
     end
   end
 
+  context "integrating testing 'all' subscriptions" do
+    let(:subscription) { Jason::Subscription.upsert_by_config('post', includes: []) }
+
+    before do
+      subscription.add_consumer('def123')
+    end
+
+    it "broadcasts on create" do
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      post = Post.create!(name: 'test')
+
+      expect(broadcasts.count).to eq(1)
+      expect(broadcasts.first[:message]).to eq({
+        :id=>post.id,
+        :model=>"post",
+        :payload=>{
+          "id" => post.id,
+          "name" => 'test'
+        },
+        :md5Hash=>subscription.id,
+        :idx=>1
+      })
+    end
+
+    it "broadcasts on destroy" do
+      post = Post.create!(name: 'test')
+
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      $pry = true
+      post.destroy
+
+      expect(broadcasts.count).to eq(1)
+      expect(broadcasts.first[:message]).to eq({
+        :id=>post.id,
+        :destroy => true,
+        :model=>"post",
+        :md5Hash=>subscription.id,
+        :idx=>2
+      })
+    end
+  end
+
   context "integration testing subscriptions" do
     let(:post) { Post.create! }
 

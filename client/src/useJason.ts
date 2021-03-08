@@ -90,7 +90,7 @@ export default function useJason({ reducers, middleware = [], extraActions }: { 
       function removeSubscription(config) {
         transportAdapter.removeSubscription(config)
         const md5Hash = md5(JSON.stringify(config))
-        payloadHandlers[md5Hash].tearDown()
+        payloadHandlers[md5Hash]?.tearDown() // Race condition where component mounts then unmounts quickly
         delete payloadHandlers[md5Hash]
         delete configs[md5Hash]
         delete subOptions[md5Hash]

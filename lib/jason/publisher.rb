@@ -5,6 +5,7 @@ module Jason::Publisher
   def self.cache_all
     Rails.application.eager_load!
     ActiveRecord::Base.descendants.each do |klass|
+      $redis_jason.del("jason:cache:#{klass.name.underscore}")
       klass.cache_all if klass.respond_to?(:cache_all)
     end
   end
@@ -117,7 +118,8 @@ module Jason::Publisher
       self.after_initialize -> {
         @api_model = Jason::ApiModel.new(self.class.name.underscore)
       }
-      self.after_commit :publish_json_if_changed
+      self.after_commit :force_publish_json, on: [:create, :destroy]
+      self.after_commit :publish_json_if_changed, on: [:update]
     end
 
     def find_or_create_by_id(params)

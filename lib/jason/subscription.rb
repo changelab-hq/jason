@@ -48,12 +48,15 @@ class Jason::Subscription
     end
   end
 
+  def self.all_for_model(model_name)
+    $redis_jason.smembers("jason:models:#{model_name}:all:subscriptions")
+  end
+
   def self.for_instance(model_name, id, include_all = true)
     subs = $redis_jason.smembers("jason:models:#{model_name}:#{id}:subscriptions")
     if include_all
-      subs += $redis_jason.smembers("jason:models:#{model_name}:all:subscriptions")
+      subs += all_for_model(model_name)
     end
-
     subs
   end
 
@@ -176,6 +179,13 @@ class Jason::Subscription
         subscription.broadcast_id_changeset(id_changeset)
       end
     end
+
+    all_for_model(model_name).each do |sub_id|
+      subscription = find_by_id(sub_id)
+      ids.each do |id|
+        subscription.destroy(model_name, id)
+      end
+    end
   end
 
   # Add ID to any _all_ subscriptions
@@ -238,7 +248,6 @@ class Jason::Subscription
     all_models = includes_helper.all_models(model_name)
 
     relation = model_name.classify.constantize.all.eager_load(includes_tree)
-
     if model_name == model
       if conditions.blank?
         $redis_jason.sadd("jason:models:#{model_name}:all:subscriptions", id)
@@ -287,6 +296,7 @@ class Jason::Subscription
       end
       $redis_jason.del("jason:subscriptions:#{id}:ids:#{model_name}")
     end
+    $redis_jason.del("jason:subscriptions:#{id}:graph")
   end
 
   def ids(model_name = model)
@@ -381,7 +391,6 @@ class Jason::Subscription
     # Remove subscription state
     if hard
       clear_all_ids
-      $redis_jason.del("jason:subscriptions:#{id}:graph")
     end
 
     set_ids_for_sub_models(enforce: true)

@@ -73,9 +73,10 @@ function useJason({ reducers, middleware = [], extraActions }) {
                 };
             }
             function removeSubscription(config) {
+                var _a;
                 transportAdapter.removeSubscription(config);
                 const md5Hash = blueimp_md5_1.default(JSON.stringify(config));
-                payloadHandlers[md5Hash].tearDown();
+                (_a = payloadHandlers[md5Hash]) === null || _a === void 0 ? void 0 : _a.tearDown(); // Race condition where component mounts then unmounts quickly
                 delete payloadHandlers[md5Hash];
                 delete configs[md5Hash];
                 delete subOptions[md5Hash];
