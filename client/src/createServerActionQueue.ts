@@ -1,31 +1,65 @@
 // A FIFO queue with deduping of actions whose effect will be cancelled by later actions
-
+import { v4 as uuidv4 } from 'uuid'
 import _ from 'lodash'
+
+class Deferred {
+  promise: Promise<any>;
+  resolve: any;
+  reject: any;
+
+  constructor() {
+    this.promise = new Promise((resolve, reject)=> {
+      this.reject = reject
+      this.resolve = resolve
+    })
+  }
+}
 
 export default function createServerActionQueue() {
   const queue: any[] = []
+  const deferreds = {}
+
   let inFlight = false
 
-  function addItem(item) {
+  function addItem(action) {
     // Check if there are any items ahead in the queue that this item would effectively overwrite.
     // In that case we can remove them
     // If this is an upsert && item ID is the same && current item attributes are a superset of the earlier item attributes
-    const { type, payload } = item
+    const { type, payload } = action
+    const id = uuidv4()
+    const dfd = new Deferred()
+    deferreds[id] = [dfd]
+
+    const item = { id, action }
+
     if (type.split('/')[1] !== 'upsert') {
       queue.push(item)
-      return
+      return dfd.promise
     }
 
     _.remove(queue, item => {
-      const { type: itemType, payload: itemPayload } = item
+      const { type: itemType, payload: itemPayload } = item.action
       if (type !== itemType) return false
       if (itemPayload.id !== payload.id) return false
 
       // Check that all keys of itemPayload are in payload.
+      deferreds[id].push(...deferreds[item.id])
       return _.difference(_.keys(itemPayload),_.keys(payload)).length === 0
     })
 
     queue.push(item)
+    return dfd.promise
+  }
+
+  function itemProcessed(id, data?: any) {
+    inFlight = false
+    deferreds[id].forEach(dfd => dfd.resolve(data))
+  }
+
+  function itemFailed(id, error?: any) {
+    queue.length = 0
+    deferreds[id].forEach(dfd => dfd.reject(error))
+    inFlight = false
   }
 
   return {
@@ -40,7 +74,8 @@ export default function createServerActionQueue() {
       }
       return false
     },
-    itemProcessed: () => inFlight = false,
+    itemProcessed,
+    itemFailed,
     fullySynced: () => queue.length === 0 && !inFlight,
     getData: () => ({ queue, inFlight })
   }

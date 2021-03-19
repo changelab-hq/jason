@@ -15,18 +15,20 @@ export default function createOptDis(schema, dispatch, restClient, serverActionQ
   const plurals = _.keys(schema).map(k => pluralize(k))
 
   function enqueueServerAction (action) {
-    serverActionQueue.addItem(action)
+    return serverActionQueue.addItem(action)
   }
 
   function dispatchServerAction() {
-    const action = serverActionQueue.getItem()
-    if (!action) return
+    const item = serverActionQueue.getItem()
+    if (!item) return
+
+    const { id, action } = item
 
     restClient.post('/jason/api/action', action)
-    .then(serverActionQueue.itemProcessed)
-    .catch(e => {
-      dispatch({ type: 'upsertLocalUi', data: { error: JSON.stringify(e) } })
-      serverActionQueue.itemProcessed()
+    .then(({ data }) => serverActionQueue.itemProcessed(id, data))
+    .catch(error => {
+      dispatch({ type: 'jason/upsert', payload: { error } })
+      serverActionQueue.itemFailed(id, error)
     })
   }
 
@@ -39,7 +41,7 @@ export default function createOptDis(schema, dispatch, restClient, serverActionQ
     dispatch({ type, payload: data })
 
     if (plurals.indexOf(type.split('/')[0]) > -1) {
-      enqueueServerAction({ type, payload: data })
+      return enqueueServerAction({ type, payload: data })
     }
   }
 }

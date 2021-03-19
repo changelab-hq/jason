@@ -9,7 +9,6 @@ import createTransportAdapater from './createTransportAdapter'
 
 import { createEntityAdapter, createSlice, createReducer, configureStore } from '@reduxjs/toolkit'
 
-import makeEager from './makeEager'
 import { camelizeKeys } from 'humps'
 import md5 from 'blueimp-md5'
 import _ from 'lodash'
@@ -41,7 +40,6 @@ export default function useJason({ reducers, middleware = [], extraActions }: { 
 
       const optDis = createOptDis(schema, dispatch, restClient, serverActionQueue)
       const actions = createActions(schema, store, restClient, optDis, extraActions)
-      const eager = makeEager(schema)
 
       let payloadHandlers = {}
       let configs = {}
@@ -99,7 +97,6 @@ export default function useJason({ reducers, middleware = [], extraActions }: { 
       setValue({
         actions: actions,
         subscribe: createSubscription,
-        eager,
         handlePayload
       })
       setStore(store)

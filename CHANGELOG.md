@@ -1,3 +1,14 @@
+## v0.6.9
+- Added: Optimistic updates now return a promise which can chained to perform actions _after_ an update is persisted to server. (For example, if your component depends on fetching additional data that only exists once your instance is persisted)
+```
+act.posts.add({ name: 'new post' })
+  .then(loadEditPostModal)
+  .catch(e => console.error("Oh no!", e))
+```
+
+## v0.6.8
+- Fix: Objects in 'all' subscription not always being broadcast
+
 ## v0.6.7
 - Fix: Change names of controllers to be less likely to conflict with host app inflections
 - Added: Pusher now pushes asychronously via Sidekiq using the Pusher batch API

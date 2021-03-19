@@ -1,7 +1,8 @@
 export default function createServerActionQueue(): {
-    addItem: (item: any) => void;
+    addItem: (action: any) => Promise<any>;
     getItem: () => any;
-    itemProcessed: () => boolean;
+    itemProcessed: (id: any, data?: any) => void;
+    itemFailed: (id: any, error?: any) => void;
     fullySynced: () => boolean;
     getData: () => {
         queue: any[];

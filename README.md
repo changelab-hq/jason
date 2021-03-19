@@ -4,13 +4,13 @@ Jason is still in an experimental phase with a rapidly changing API. It is being
 
 ## The goal
 
-I wanted:
+We wanted:
  - Automatic updates to client state based on database state
  - Persistence to the database without many layers of passing parameters
  - Redux for awesome state management
  - Optimistic updates
 
-I also wanted to avoid writing essentially the same code multiple times in different places to handle common CRUD-like operations. Combine Rails schema definition files, REST endpoints, Redux actions, stores, reducers, handlers for websocket payloads and the translations between them, and it adds up to tons of repetitive boilerplate. Every change to the data schema requires updates in five or six files. This inhibits refactoring and makes mistakes more likely.
+We also wanted to avoid writing essentially the same code multiple times in different places to handle common CRUD-like operations. Combine Rails schema definition files, REST endpoints, Redux actions, stores, reducers, handlers for websocket payloads and the translations between them, and it adds up to tons of repetitive boilerplate. Every change to the data schema requires updates in five or six files. This inhibits refactoring and makes mistakes more likely.
 
 Jason attempts to minimize this repitition by auto-generating API endpoints, redux stores and actions from a single schema definition. Further it adds listeners to ActiveRecord models allowing the redux store to be subscribed to updates from a model or set of models.
 
@@ -170,18 +170,8 @@ Development is primarily driven by the needs of projects we're using Jason in. I
 - Benchmark and migrate if necessary ConnectionPool::Wrapper vs ConnectionPool
 - Assess using RedisGraph for the graph diffing functionality, to see if this would provide a performance boost
 
-## Development
-
-
-
-## Contributing
-
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/jason. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [code of conduct](https://github.com/[USERNAME]/jason/blob/master/CODE_OF_CONDUCT.md).
-
 ## License
 
 The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
 
-## Code of Conduct
 
-Everyone interacting in the Jason project's codebases, issue trackers, chat rooms and mailing lists is expected to follow the [code of conduct](https://github.com/[USERNAME]/jason/blob/master/CODE_OF_CONDUCT.md).

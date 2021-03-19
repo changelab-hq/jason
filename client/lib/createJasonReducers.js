@@ -7,7 +7,8 @@ const toolkit_1 = require("@reduxjs/toolkit");
 const pluralize_1 = __importDefault(require("pluralize"));
 const lodash_1 = __importDefault(require("lodash"));
 function generateSlices(models) {
-    const sliceNames = models.map(k => pluralize_1.default(k));
+    // create two slices for each model. One to hold the persisted data, and one to hold draft data
+    const sliceNames = models.map(k => pluralize_1.default(k)).concat(models.map(k => `${pluralize_1.default(k)}Drafts`));
     const adapter = toolkit_1.createEntityAdapter();
     return lodash_1.default.fromPairs(lodash_1.default.map(sliceNames, name => {
         return [name, toolkit_1.createSlice({
@@ -66,7 +67,8 @@ function generateJasonSlices(models) {
         name: 'jason',
         initialState: {
             connected: false,
-            queueSize: 0
+            queueSize: 0,
+            error: null
         },
         reducers: {
             upsert: (s, a) => (Object.assign(Object.assign({}, s), a.payload))

@@ -3,7 +3,8 @@ import pluralize from 'pluralize'
 import _ from 'lodash'
 
 function generateSlices(models) {
-  const sliceNames = models.map(k => pluralize(k))
+  // create two slices for each model. One to hold the persisted data, and one to hold draft data
+  const sliceNames = models.map(k => pluralize(k)).concat(models.map(k => `${pluralize(k)}Drafts`))
   const adapter = createEntityAdapter()
 
   return _.fromPairs(_.map(sliceNames, name => {
@@ -67,7 +68,8 @@ function generateJasonSlices(models) {
     name: 'jason',
     initialState: {
       connected: false,
-      queueSize: 0
+      queueSize: 0,
+      error: null
     },
     reducers: {
       upsert: (s,a) => ({ ...s, ...a.payload })
