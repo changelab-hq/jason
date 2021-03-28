@@ -26,6 +26,10 @@ class Jason::GraphHelper
     $redis_jason.srem("jason:subscriptions:#{id}:graph", edges)
   end
 
+  def apply_add_node_at_root(node)
+    diff_edges_from_graph(add_edges: ["root/#{node}"])
+  end
+
   def apply_remove_node(node)
     edges = $redis_jason.smembers("jason:subscriptions:#{id}:graph")
     edges = find_edges_with_node(edges, node)

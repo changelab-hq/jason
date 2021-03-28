@@ -12,6 +12,8 @@ require 'jason/engine'
 require 'jason/lua_generator'
 require 'jason/includes_helper'
 require 'jason/graph_helper'
+require 'jason/conditions_matcher'
+require 'jason/consistency_checker'
 
 module Jason
   class Error < StandardError; end

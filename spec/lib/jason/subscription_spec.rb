@@ -174,6 +174,19 @@ RSpec.describe Jason::Subscription do
       end
     end
 
+    context "models on an all subscription" do
+      let(:subscription) { Jason::Subscription.upsert_by_config('post') }
+
+      before do
+        subscription.add_consumer('cde456')
+      end
+
+      it "assigns the correct IDs and subscriptions" do
+        expect(subscription.ids('post')).to eq([])
+
+        expect(Jason::Subscription.for_instance('post', post.id)).to eq([subscription.id])
+      end
+    end
   end
 
   context "instances changing nested ID" do
@@ -251,7 +264,7 @@ RSpec.describe Jason::Subscription do
     end
   end
 
-  context "integrating testing 'all' subscriptions" do
+  context "integration testing 'all' subscriptions" do
     let(:subscription) { Jason::Subscription.upsert_by_config('post', includes: []) }
 
     before do
@@ -298,6 +311,437 @@ RSpec.describe Jason::Subscription do
         :md5Hash=>subscription.id,
         :idx=>2
       })
+    end
+  end
+
+  context "integrating testing condition subscriptions" do
+    let(:post) { Post.create! }
+    let(:subscription) { Jason::Subscription.upsert_by_config('comment', conditions: { post_id: post.id } ) }
+
+    it "broadcasts on sub create" do
+      comment1 = post.comments.create!(body: 'Test me')
+      subscription.add_consumer('def123')
+
+      expect(subscription.get['comment']).to include({
+        idx: 0,
+        md5Hash: subscription.id,
+        model: 'comment',
+        payload: match_array([
+          a_hash_including({ 'id' => comment1.id })
+        ]),
+        type: 'payload'
+      })
+    end
+
+    it "broadcasts on instance create" do
+      subscription.add_consumer('def123')
+
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      comment1 = post.comments.create!(body: 'Hi there')
+      comment2 = post.comments.create!(body: 'Hi another')
+
+      expect(broadcasts.count).to eq(2)
+      expect(broadcasts.first[:message]).to include({
+        :id=>comment1.id,
+        :model=>"comment",
+        :payload=>a_hash_including({
+          "id" => comment1.id,
+          "post_id" => post.id,
+          "moderating_user_id" => nil,
+          "user_id" => nil,
+          "body" => "Hi there"
+        }),
+        :md5Hash=>subscription.id,
+        :idx=>1
+      })
+      expect(broadcasts.last[:message]).to include({
+        :id=>comment2.id,
+        :model=>"comment",
+        :payload=>a_hash_including({
+          "id" => comment2.id,
+          "post_id" => post.id,
+          "moderating_user_id" => nil,
+          "user_id" => nil,
+          "body" => "Hi another"
+        }),
+        :md5Hash=>subscription.id,
+        :idx=>2
+      })
+    end
+
+    it "broadcasts on update" do
+      comment = post.comments.create!(body: 'Hi there')
+      subscription.add_consumer('def123')
+
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      comment.update!(body: "New body")
+
+      expect(broadcasts.count).to eq(1)
+      expect(broadcasts.last[:message]).to include({
+        :id=>comment.id,
+        :model=>"comment",
+        :payload=>a_hash_including({
+          "id" => comment.id,
+          "post_id" => post.id,
+          "moderating_user_id" => nil,
+          "user_id" => nil,
+          "body" => "New body"
+        }),
+        :md5Hash=>subscription.id,
+        :idx=>1
+      })
+    end
+
+    it "broadcasts on destroy" do
+      comment = post.comments.create!(body: 'Hi there')
+      subscription.add_consumer('def123')
+
+      broadcasts = []
+      allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+        broadcasts.push({ sub_id: sub_id, message: message })
+      end
+
+      comment.destroy!
+
+      expect(broadcasts.count).to eq(1)
+      expect(broadcasts.last[:message]).to eq({
+        :id=>comment.id,
+        :model=>"comment",
+        :destroy => true,
+        :md5Hash=>subscription.id,
+        :idx=>1
+      })
+    end
+
+    context "range subscriptions" do
+      let(:subscription) do Jason::Subscription.upsert_by_config('comment', conditions: {
+          created_at: { type: 'between', value: [
+            (Time.now.utc - 1.hour).strftime('%Y-%m-%d %H:%M:%S'),
+            (Time.now.utc + 1.hour).strftime('%Y-%m-%d %H:%M:%S')
+          ] }
+        })
+      end
+
+      it "works on sub create" do
+        comment1 = post.comments.create!(body: 'Test me')
+        comment2 = post.comments.create!(body: 'Test me2', created_at: Time.now.utc - 2.hours)
+
+        subscription.add_consumer('def123')
+
+        expect(subscription.get['comment']).to include({
+          idx: 0,
+          md5Hash: subscription.id,
+          model: 'comment',
+          payload: match_array([
+            a_hash_including({ 'id' => comment1.id })
+          ]),
+          type: 'payload'
+        })
+      end
+
+      it "works when an instance joins the subscription" do
+        comment1 = post.comments.create!(body: 'Hi there', created_at: Time.now.utc - 2.hours)
+        comment2 = post.comments.create!(body: 'Hi another', created_at: Time.now.utc - 2.hours)
+
+        subscription.add_consumer('def123')
+
+        # Expect nothing to be in the range sub yet
+        expect(subscription.get['comment']).to include({
+          idx: 0,
+          md5Hash: subscription.id,
+          model: 'comment',
+          payload: [],
+          type: 'payload'
+        })
+
+        broadcasts = []
+        allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+          broadcasts.push({ sub_id: sub_id, message: message })
+        end
+
+        comment1.update!(created_at: Time.now.utc)
+
+        expect(broadcasts.count).to eq(1)
+        expect(broadcasts.first[:message]).to include({
+          :id=>comment1.id,
+          :model=>"comment",
+          :payload=>a_hash_including({
+            "id" => comment1.id,
+            "post_id" => post.id,
+            "moderating_user_id" => nil,
+            "user_id" => nil,
+            "body" => "Hi there",
+          }),
+          :md5Hash=>subscription.id,
+          :idx=>1
+        })
+      end
+
+      it "works when an instance leaves the subscription" do
+        comment1 = post.comments.create!(body: 'Hi there')
+        comment2 = post.comments.create!(body: 'Hi another')
+
+        subscription.add_consumer('def123')
+
+        expect(subscription.get['comment'][:payload].count).to eq(2)
+
+        broadcasts = []
+        allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+          broadcasts.push({ sub_id: sub_id, message: message })
+        end
+
+        comment1.update!(created_at: Time.now.utc - 2.hours)
+
+        expect(broadcasts.count).to eq(1)
+        expect(broadcasts.last[:message]).to eq({
+          :id=>comment1.id,
+          :model=>"comment",
+          :destroy => true,
+          :md5Hash=>subscription.id,
+          :idx=>1
+        })
+        expect(subscription.get['comment'][:payload].count).to eq(1)
+      end
+
+      it "works with not" do
+        subscription = Jason::Subscription.upsert_by_config('comment', conditions: {
+          created_at: { type: 'between', not: true, value: [
+            (Time.now.utc - 1.hour).strftime('%Y-%m-%d %H:%M:%S'),
+            (Time.now.utc + 1.hour).strftime('%Y-%m-%d %H:%M:%S')
+          ] }
+        })
+
+        comment1 = post.comments.create!(body: 'Hi there')
+        comment2 = post.comments.create!(body: 'Hi another')
+
+        subscription.add_consumer('def123')
+
+        expect(subscription.get['comment'][:payload].count).to eq(0)
+
+        broadcasts = []
+        allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+          broadcasts.push({ sub_id: sub_id, message: message })
+        end
+
+        comment1.update!(created_at: Time.now.utc - 6.hours)
+
+        expect(broadcasts.count).to eq(1)
+        expect(broadcasts.first[:message]).to include({
+          :id=>comment1.id,
+          :model=>"comment",
+          :payload=>a_hash_including({
+            "id" => comment1.id,
+            "post_id" => post.id,
+            "moderating_user_id" => nil,
+            "user_id" => nil,
+            "body" => "Hi there",
+          }),
+          :md5Hash=>subscription.id,
+          :idx=>1
+        })
+        expect(subscription.get['comment'][:payload].count).to eq(1)
+      end
+    end
+
+    context "equal subscriptions" do
+      let(:subscription) do Jason::Subscription.upsert_by_config('comment', conditions: {
+          body: { type: 'equals', value: 'Hello' }
+        })
+      end
+
+      it "works on sub create" do
+        comment1 = post.comments.create!(body: 'Hello')
+        comment2 = post.comments.create!(body: 'Goodbye')
+
+        subscription.add_consumer('def123')
+
+        expect(subscription.get['comment']).to include({
+          idx: 0,
+          md5Hash: subscription.id,
+          model: 'comment',
+          payload: match_array([
+            a_hash_including({ 'id' => comment1.id })
+          ]),
+          type: 'payload'
+        })
+      end
+
+      it "works when an instance joins the subscription" do
+        comment1 = post.comments.create!(body: 'Hello')
+        comment2 = post.comments.create!(body: 'Goodbye')
+
+        subscription.add_consumer('def123')
+
+        broadcasts = []
+        allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+          broadcasts.push({ sub_id: sub_id, message: message })
+        end
+
+        comment2.update!(body: 'Hello')
+
+        expect(broadcasts.count).to eq(1)
+        expect(broadcasts.first[:message]).to include({
+          :id=>comment2.id,
+          :model=>"comment",
+          :payload=>a_hash_including({
+            "id" => comment2.id,
+            "body" => "Hello"
+          }),
+          :md5Hash=>subscription.id,
+          :idx=>1
+        })
+      end
+
+      it "works when an instance leaves the subscription" do
+        comment1 = post.comments.create!(body: 'Hello')
+        comment2 = post.comments.create!(body: 'Goodbye')
+
+        subscription.add_consumer('def123')
+
+        broadcasts = []
+        allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+          broadcasts.push({ sub_id: sub_id, message: message })
+        end
+
+        comment1.update!(body: 'Something else')
+
+        expect(broadcasts.count).to eq(1)
+        expect(broadcasts.first[:message]).to include({
+          :id=>comment1.id,
+          :model=>"comment",
+          :destroy => true,
+          :md5Hash=>subscription.id,
+          :idx=>1
+        })
+      end
+    end
+
+    context "nested subscriptions" do
+      let(:subscription) do Jason::Subscription.upsert_by_config('comment', conditions: {
+          created_at: { type: 'between', value: [
+            (Time.now.utc - 1.hour).strftime('%Y-%m-%d %H:%M:%S'),
+            (Time.now.utc + 1.hour).strftime('%Y-%m-%d %H:%M:%S')
+          ] }
+        },
+        includes: { 'user' => ['roles'] })
+      end
+
+      let!(:user1) { User.create! }
+      let!(:user2) { User.create! }
+      let!(:role1) { user1.roles.create!(name: 'admin') }
+      let!(:role2) { user2.roles.create!(name: 'delegate') }
+      let!(:comment1) { post.comments.create!(body: 'Test me', user: user1) }
+      let!(:comment2) { post.comments.create!(body: 'Test me2', created_at: Time.now.utc - 2.hours, user: user2) }
+      let!(:broadcasts) { [] }
+
+      before do
+        subscription.add_consumer('def123')
+        allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+          broadcasts.push({ sub_id: sub_id, message: message })
+        end
+      end
+
+      it "works on sub create" do
+        expect(subscription.get['user']).to include({
+          idx: 0,
+          md5Hash: subscription.id,
+          model: 'user',
+          payload: match_array([
+            a_hash_including({ 'id' => user1.id })
+          ]),
+          type: 'payload'
+        })
+        expect(subscription.get['role']).to include({
+          idx: 0,
+          md5Hash: subscription.id,
+          model: 'role',
+          payload: match_array([
+            a_hash_including({ 'id' => role1.id })
+          ]),
+          type: 'payload'
+        })
+      end
+
+      it "adds sub instances on instance joining" do
+        comment2.update!(created_at: Time.now.utc)
+
+        expect(broadcasts.count).to eq(3)
+        expect(broadcasts.map { |b| b[:message][:model] }).to match_array(['comment', 'user', 'role'])
+      end
+
+      it "correctly adds a sub instance" do
+        role2.update!(user_id: user1.id)
+
+        expect(broadcasts.count).to eq(2) # Unclear why, this double broadcasts. TODO: Resolve.
+        expect(broadcasts.first[:message]).to include({
+          :id=>role2.id,
+          :model=>"role",
+          :payload=>a_hash_including({
+            "id" => role2.id
+          }),
+          :md5Hash=>subscription.id,
+          :idx=>1
+        })
+      end
+
+      it "removes sub instances when leaving" do
+        comment1.update!(created_at: Time.now.utc - 2.hours)
+
+        expect(broadcasts.count).to eq(3)
+        expect(broadcasts.all? { |b| b[:message][:destroy] }).to be(true)
+        expect(broadcasts.map { |b| b[:message][:model] }).to match_array(['comment', 'user', 'role'])
+      end
+    end
+
+    context "multiple conditions" do
+      let(:subscription) do Jason::Subscription.upsert_by_config('comment', conditions: {
+          created_at: { type: 'between', value: [
+            (Time.now.utc - 1.hour).strftime('%Y-%m-%d %H:%M:%S'),
+            (Time.now.utc + 1.hour).strftime('%Y-%m-%d %H:%M:%S')
+          ] },
+          body: 'Hello'
+        })
+      end
+
+      let!(:post) { Post.create! }
+      let!(:comment1) { Comment.create!(post: post, body: 'Hello') }
+      let!(:comment2) { Comment.create!(post: post, body: 'Hello') }
+      let!(:broadcasts) { [] }
+
+      before do
+        subscription.add_consumer('def123')
+        allow(ActionCable.server).to receive(:broadcast).with("jason-#{subscription.id}", anything) do |sub_id, message|
+          broadcasts.push({ sub_id: sub_id, message: message })
+        end
+      end
+
+      it "applies both conditions" do
+        expect(subscription.get['comment']).to include({
+          idx: 0,
+          md5Hash: subscription.id,
+          model: 'comment',
+          payload: match_array([
+            a_hash_including({ 'id' => comment1.id }),
+            a_hash_including({ 'id' => comment2.id })
+          ]),
+          type: 'payload'
+        })
+
+        comment1.update!(created_at: Time.now.utc - 2.hours)
+        comment2.update!(body: 'Goodbye')
+
+        expect(broadcasts.count).to eq(2)
+        expect(broadcasts.all? { |b| b[:message][:destroy] }).to be(true)
+        expect(broadcasts.map { |b| b[:message][:id] }).to match_array([comment1.id, comment2.id])
+      end
     end
   end
 
@@ -348,12 +792,13 @@ RSpec.describe Jason::Subscription do
       message = {
         :id=>new_comment_id,
         :model=>"comment",
-        :payload=>{
+        :payload=>a_hash_including({
           "id" => new_comment_id,
           "post_id" => post.id,
           "user_id" => User.first.id,
-          "moderating_user_id" => nil
-        },
+          "moderating_user_id" => nil,
+          "body" => "Hello"
+        }),
         :md5Hash=>subscription.id,
         :idx=>1}
       message2 = message.clone
@@ -515,12 +960,13 @@ RSpec.describe Jason::Subscription do
 
       expect(broadcasts.size).to eq(4)
       expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
-        { id: comment1.id, model: 'comment', payload: {
+        { id: comment1.id, model: 'comment', payload: a_hash_including({
           "id" => comment1.id,
           "post_id" => post.id,
           "user_id" => nil,
-          "moderating_user_id" => nil
-        } },
+          "moderating_user_id" => nil,
+          "body" => nil
+        }) },
         { destroy: true, id: user1.id, model: 'user' },
         { destroy: true, id: role1.id, model: 'role' },
         { destroy: true, id: role1_2.id, model: 'role' },
@@ -555,12 +1001,13 @@ RSpec.describe Jason::Subscription do
       comment2.update!(user: user1)
       expect(broadcasts.size).to eq(3)
       expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
-        { id: comment2.id, model: 'comment', payload: {
+        { id: comment2.id, model: 'comment', payload: a_hash_including({
           "id" => comment2.id,
           "post_id" => post.id,
           "user_id" => user1.id,
-          "moderating_user_id" => nil
-        } },
+          "moderating_user_id" => nil,
+          "body" => nil
+        }) },
         { destroy: true, id: user2.id, model: 'user' },
         { destroy: true, id: role2.id, model: 'role' }
       ])
@@ -577,24 +1024,26 @@ RSpec.describe Jason::Subscription do
       # user3 isn't in the sub, so shouldn't be broadcast
       expect(broadcasts.size).to eq(1)
       expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
-        { id: comment2.id, model: 'comment', payload: {
+        { id: comment2.id, model: 'comment', payload: a_hash_including({
           "id" => comment2.id,
           "post_id" => post.id,
           "user_id" => user2.id,
-          "moderating_user_id" => user3.id
-        } }
+          "moderating_user_id" => user3.id,
+          "body" => nil
+        }) }
       ])
 
       broadcasts = []
       comment2.update!(moderating_user_id: user2.id)
       expect(broadcasts.size).to eq(1)
       expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
-        { id: comment2.id, model: 'comment', payload: {
+        { id: comment2.id, model: 'comment', payload: a_hash_including({
           "id" => comment2.id,
           "post_id" => post.id,
           "user_id" => user2.id,
-          "moderating_user_id" => user2.id
-        } }
+          "moderating_user_id" => user2.id,
+          "body" => nil
+        }) }
       ])
 
       broadcasts = []
@@ -603,12 +1052,13 @@ RSpec.describe Jason::Subscription do
       # It shouldn't remove user2, because this isn't the association referenced in sub config
       expect(broadcasts.size).to eq(1)
       expect(broadcasts.map{ |b| b[:message].slice(:destroy, :model, :id, :payload)}).to match_array([
-        { id: comment2.id, model: 'comment', payload: {
+        { id: comment2.id, model: 'comment', payload: a_hash_including({
           "id" => comment2.id,
           "post_id" => post.id,
           "user_id" => user2.id,
-          "moderating_user_id" => nil
-        } }
+          "moderating_user_id" => nil,
+          "body" => nil
+        }) }
       ])
     end
 

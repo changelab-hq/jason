@@ -60,6 +60,19 @@ class Jason::Subscription
     subs
   end
 
+  # returns [
+  #   { condition: { post_id: 123 }, subscription_ids: [] }
+  # ]
+  def self.conditions_for_model(model_name)
+    rows = $redis_jason.smembers("jason:models:#{model_name}:conditions").map do |row|
+      JSON.parse(row)
+    end
+    conditions = rows.group_by { |row| row['conditions'] }
+    conditions.map do |conditions, rows|
+      { 'conditions' => conditions, 'subscription_ids' => rows.map { |row| row['subscription_id'] } }
+    end
+  end
+
   def self.for_model(model_name)
 
   end
@@ -166,10 +179,14 @@ class Jason::Subscription
       subscription.apply_id_changeset(id_changeset)
       subscription.broadcast_id_changeset(id_changeset)
     end
+
+    #########
+    # ---> Join the community
+    # Subs where changed is parent + parent is an _all_ or _condition_ subscription
+
   end
 
   def self.remove_ids(model_name, ids)
-    # td: finish this
     ids.each do |instance_id|
       for_instance(model_name, instance_id, false).each do |sub_id|
         subscription = find_by_id(sub_id)
@@ -186,11 +203,6 @@ class Jason::Subscription
         subscription.destroy(model_name, id)
       end
     end
-  end
-
-  # Add ID to any _all_ subscriptions
-  def self.add_id(model_name, id)
-
   end
 
   def self.all
@@ -211,6 +223,28 @@ class Jason::Subscription
     ids.each do |instance_id|
       $redis_jason.sadd("jason:models:#{model_name}:#{instance_id}:subscriptions", id)
     end
+  end
+
+  def remove_id(model_name, id)
+    id_changeset = graph_helper.apply_remove_node("#{model_name}:#{id}")
+    apply_id_changeset(id_changeset)
+    broadcast_id_changeset(id_changeset)
+  end
+
+  def add_id(model_name, id)
+    id_changeset = graph_helper.apply_update({
+      add: [
+        {
+          model_names: [model_name],
+          instance_ids: [[id]]
+        },
+        # Add IDs of child models
+        load_ids_for_sub_models(model_name, id)
+      ]
+    })
+
+    apply_id_changeset(id_changeset)
+    broadcast_id_changeset(id_changeset)
   end
 
   def remove_ids(model_name, ids)
@@ -252,8 +286,14 @@ class Jason::Subscription
       if conditions.blank?
         $redis_jason.sadd("jason:models:#{model_name}:all:subscriptions", id)
         all_models -= [model_name]
-      else
+      elsif conditions.keys == ['id']
         relation = relation.where(conditions)
+      else
+        $redis_jason.sadd("jason:models:#{model_name}:conditions", {
+          'conditions' => conditions,
+          'subscription_id' => self.id
+        }.to_json)
+        relation = Jason::ConditionsMatcher.new(relation.klass).apply_conditions(relation, conditions)
       end
     else
       raise "Must supply IDs for sub models" if ids.nil?
@@ -266,7 +306,7 @@ class Jason::Subscription
 
     # pluck returns only a 1D array if only 1 arg passed
     if all_models.size == 1
-      instance_ids = [instance_ids]
+      instance_ids = instance_ids.map { |id| [id] }
     end
 
     return { model_names: all_models, instance_ids: instance_ids }
@@ -275,12 +315,12 @@ class Jason::Subscription
   # 'posts', [post#1, post#2,...]
   def set_ids_for_sub_models(model_name = model, ids = nil, enforce: false)
     edge_set = load_ids_for_sub_models(model_name, ids)
-
     # Build the tree
     id_changeset = graph_helper.apply_update({
       add: [edge_set],
       enforce: enforce
     })
+
     apply_id_changeset(id_changeset)
   end
 
@@ -338,10 +378,6 @@ class Jason::Subscription
   def remove_consumer(consumer_id)
     $redis_jason.srem("jason:subscriptions:#{id}:consumers", consumer_id)
     $redis_jason.hdel("jason:consumers", consumer_id)
-
-    if consumer_count == 0
-      clear_all_ids
-    end
   end
 
   def consumer_count

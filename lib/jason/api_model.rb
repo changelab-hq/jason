@@ -36,11 +36,7 @@ class Jason::ApiModel
   end
 
   def permit(params)
-    pp self
-    pp params
     params = params.require(:payload).permit(allowed_params).tap do |allowed|
-      pp "ALLOWED"
-      pp allowed
       allowed_object_params.each do |key|
         allowed[key] = params[:payload][key].to_unsafe_h if params[:payload][key]
       end

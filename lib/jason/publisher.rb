@@ -73,13 +73,38 @@ module Jason::Publisher
        )
     end
 
-    # - An instance is created where it belongs_to an _all_ subscription
-    if previous_changes['id'].present?
-      Jason::Subscription.add_id(self.class.name.underscore, id)
-    end
-
     if persisted?
+      applied_sub_ids = []
+
+      jason_conditions.each do |row|
+        matches = row['conditions'].map do |key, rules|
+          Jason::ConditionsMatcher.new(self.class).test_match(key, rules, previous_changes)
+        end
+        next if matches.all? { |m| m.nil? } # None of the keys were in previous changes - therefore this condition does not apply
+        in_sub = matches.all? { |m| m }
+
+        if in_sub
+          row['subscription_ids'].each do |sub_id|
+            Jason::Subscription.find_by_id(sub_id).add_id(self.class.name.underscore, self.id)
+            applied_sub_ids.push(sub_id)
+          end
+        else
+          row['subscription_ids'].each do |sub_id|
+            jason_subscriptions.each do |already_sub_id|
+              # If this sub ID already has this instance, remove it
+              if already_sub_id == sub_id
+                sub = Jason::Subscription.find_by_id(already_sub_id)
+                sub.remove_id(self.class.name.underscore, self.id)
+                applied_sub_ids.push(already_sub_id)
+              end
+            end
+          end
+        end
+      end
+
       jason_subscriptions.each do |sub_id|
+        next if applied_sub_ids.include?(sub_id)
+
         Jason::Subscription.new(id: sub_id).update(self.class.name.underscore, id, payload, gidx)
       end
     end
@@ -92,6 +117,10 @@ module Jason::Publisher
 
   def jason_subscriptions
     Jason::Subscription.for_instance(self.class.name.underscore, id)
+  end
+
+  def jason_conditions
+    Jason::Subscription.conditions_for_model(self.class.name.underscore)
   end
 
   def jason_cached_value

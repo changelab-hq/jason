@@ -12,7 +12,6 @@ class Jason::Channel < ActionCable::Channel::Base
   private
 
   def handle_message(message)
-    pp message['createSubscription']
     @subscriptions ||= []
 
     begin # ActionCable swallows errors in this message - ensure they're output to logs.
@@ -39,7 +38,6 @@ class Jason::Channel < ActionCable::Channel::Base
     subscriptions.push(subscription)
     subscription.add_consumer(identifier)
     subscription.get.each do |payload|
-      pp payload
       transmit(payload) if payload.present?
     end
   end
