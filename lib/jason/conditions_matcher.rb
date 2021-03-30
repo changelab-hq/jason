@@ -77,9 +77,9 @@ class Jason::ConditionsMatcher
     datatype = klass.type_for_attribute(key).type
     if datatype == :datetime || datatype == :date
       if value.is_a?(Array)
-        value.map(&:to_datetime)
+        value.map { |v| v&.to_datetime }
       else
-        value.to_datetime
+        value&.to_datetime
       end
     else
       value

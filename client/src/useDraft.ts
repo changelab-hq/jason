@@ -9,9 +9,9 @@ useDraft('entity', id, relations) => returns [draft, objectWithEmbeddedRelations
 */
 
 export default function useDraft(entity, id, relations = []) {
-  const entityDraft =`${entity}Draft`
-  const object = { ...s[entityDraft].entities[String(id)] }
+  // const entityDraft =`${entity}Draft`
+  // const object = { ...s[entityDraft].entities[String(id)] }
 
-  return useSelector(s => addRelations(s, object, entity, relations, 'Draft'), _.isEqual)
+  // return useSelector(s => addRelations(s, object, entity, relations, 'Draft'), _.isEqual)
 }
 

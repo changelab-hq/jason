@@ -12,7 +12,6 @@ const restClient_1 = __importDefault(require("./restClient"));
 const pruneIdsMiddleware_1 = __importDefault(require("./pruneIdsMiddleware"));
 const createTransportAdapter_1 = __importDefault(require("./createTransportAdapter"));
 const toolkit_1 = require("@reduxjs/toolkit");
-const makeEager_1 = __importDefault(require("./makeEager"));
 const humps_1 = require("humps");
 const blueimp_md5_1 = __importDefault(require("blueimp-md5"));
 const lodash_1 = __importDefault(require("lodash"));
@@ -33,7 +32,6 @@ function useJason({ reducers, middleware = [], extraActions }) {
             const dispatch = store.dispatch;
             const optDis = createOptDis_1.default(schema, dispatch, restClient_1.default, serverActionQueue);
             const actions = createActions_1.default(schema, store, restClient_1.default, optDis, extraActions);
-            const eager = makeEager_1.default(schema);
             let payloadHandlers = {};
             let configs = {};
             let subOptions = {};
@@ -84,7 +82,6 @@ function useJason({ reducers, middleware = [], extraActions }) {
             setValue({
                 actions: actions,
                 subscribe: createSubscription,
-                eager,
                 handlePayload
             });
             setStore(store);

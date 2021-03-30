@@ -38,14 +38,6 @@ RSpec.describe Jason::Subscription do
         expect(Jason::Subscription.for_instance('post', post.id)).to eq([subscription.id])
       end
 
-      it "clears IDs for a single model" do
-        subscription.add_consumer('cde456')
-        subscription.remove_consumer('cde456')
-
-        expect(subscription.ids('post')).to eq([])
-        expect(Jason::Subscription.for_instance('post', post.id)).to eq([])
-      end
-
       it "doesn't clear IDs if there are still consumers remaining" do
         subscription.add_consumer('cde456')
         subscription.add_consumer('def567')
@@ -62,16 +54,6 @@ RSpec.describe Jason::Subscription do
         expect(Jason::Subscription.for_instance('post', post.id)).to eq([subscription.id])
         post2 = Post.create!
         expect(Jason::Subscription.for_instance('post', post2.id)).to eq([subscription.id])
-      end
-
-      it "clears ALL ID for a single model" do
-        subscription = Jason::Subscription.upsert_by_config('post')
-        subscription.add_consumer('cde456')
-        subscription.remove_consumer('cde456')
-
-        expect(Jason::Subscription.for_instance('post', post.id)).to eq([])
-        post2 = Post.create!
-        expect(Jason::Subscription.for_instance('post', post2.id)).to eq([])
       end
     end
 
@@ -130,25 +112,6 @@ RSpec.describe Jason::Subscription do
         like2.destroy
 
         expect(subscription.ids('like')).to match_array([like1.id])
-      end
-
-      it "clears up the IDs and subscriptions" do
-        subscription.remove_consumer('cde456')
-
-        expect(subscription.ids('post')).to eq([])
-        expect(subscription.ids('comment')).to match_array([])
-        expect(subscription.ids('like')).to match_array([])
-        expect(subscription.ids('user')).to match_array([])
-
-        expect(Jason::Subscription.for_instance('post', post.id)).to eq([])
-        expect(Jason::Subscription.for_instance('comment', comment1.id)).to eq([])
-        expect(Jason::Subscription.for_instance('comment', comment2.id)).to eq([])
-        expect(Jason::Subscription.for_instance('like', like1.id)).to eq([])
-        expect(Jason::Subscription.for_instance('like', like2.id)).to eq([])
-        expect(Jason::Subscription.for_instance('user', user1.id)).to eq([])
-        expect(Jason::Subscription.for_instance('user', user2.id)).to eq([])
-
-        expect(Jason::Subscription.for_instance('comment', comment3.id)).to eq([])
       end
     end
 
