@@ -8,7 +8,7 @@ const restClient_1 = __importDefault(require("../restClient"));
 const uuid_1 = require("uuid");
 const lodash_1 = __importDefault(require("lodash"));
 function pusherAdapter(jasonConfig, handlePayload, dispatch) {
-    let consumerId = uuid_1.v4();
+    const consumerId = uuid_1.v4();
     const { pusherKey, pusherRegion, pusherChannelPrefix } = jasonConfig;
     const pusher = new pusher_js_1.default(pusherKey, {
         cluster: 'eu',

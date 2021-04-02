@@ -1,11 +1,10 @@
 import Pusher from 'pusher-js'
-import { createConsumer } from "@rails/actioncable"
 import restClient from '../restClient'
 import { v4 as uuidv4 } from 'uuid'
 import _ from 'lodash'
 
 export default function pusherAdapter(jasonConfig, handlePayload, dispatch) {
-  let consumerId = uuidv4()
+  const consumerId = uuidv4()
 
   const { pusherKey, pusherRegion, pusherChannelPrefix } = jasonConfig
   const pusher = new Pusher(pusherKey, {

@@ -37,17 +37,12 @@ class Jason::Channel < ActionCable::Channel::Base
 
     subscriptions.push(subscription)
     subscription.add_consumer(identifier)
-    subscription.get.each do |payload|
-      transmit(payload) if payload.present?
-    end
   end
 
   def remove_subscription(config)
     subscription = Jason::Subscription.upsert_by_config(config['model'], conditions: config['conditions'], includes: config['includes'])
     subscriptions.reject! { |s| s.id == subscription.id }
     subscription.remove_consumer(identifier)
-
-    # TODO Stop streams
   end
 
   def get_payload(config, force_refresh = false)

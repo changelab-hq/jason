@@ -24,7 +24,7 @@ function addRelations(s, objects, objectType, relations, suffix = '') {
         if (lodash_1.default.isArray(objects)) {
             objects = objects.map(obj => addRelations(s, obj, objectType, relation));
         }
-        else {
+        else if (lodash_1.default.isObject(objects)) {
             const relatedObjects = lodash_1.default.values(s[pluralize_1.default(relation) + suffix].entities);
             if (pluralize_1.default.isSingular(relation)) {
                 objects = Object.assign(Object.assign({}, objects), { [relation]: lodash_1.default.find(relatedObjects, { id: objects[relation + 'Id'] }) });

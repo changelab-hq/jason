@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const lodash_1 = __importDefault(require("lodash"));
 const react_redux_1 = require("react-redux");
 const addRelations_1 = __importDefault(require("./addRelations"));
-function useEager(entity, id = null, relations = []) {
+function useEager(entity, id = '', relations = []) {
     if (id) {
         return react_redux_1.useSelector(s => addRelations_1.default(s, Object.assign({}, s[entity].entities[String(id)]), entity, relations), lodash_1.default.isEqual);
     }

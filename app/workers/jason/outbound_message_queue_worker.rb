@@ -1,5 +1,5 @@
 class Jason::OutboundMessageQueueWorker
-  include Sidekiq::Worker
+  include Sidekiq::Worker if defined?(Sidekiq) # Even if not using Pusher, this gets autoloaded
 
   def perform
     batch = get_batch

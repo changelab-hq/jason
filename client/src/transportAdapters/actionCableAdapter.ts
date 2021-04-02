@@ -1,6 +1,11 @@
 import { createConsumer } from "@rails/actioncable"
+import restClient from '../restClient'
+import { v4 as uuidv4 } from 'uuid'
+import _ from 'lodash'
 
 export default function actionCableAdapter(jasonConfig, handlePayload, dispatch, onConnected) {
+  const consumerId = uuidv4()
+
   const consumer = createConsumer()
   const subscription = (consumer.subscriptions.create({
     channel: 'Jason::Channel'
@@ -22,16 +27,30 @@ export default function actionCableAdapter(jasonConfig, handlePayload, dispatch,
     }
   }));
 
-  function getPayload(config, options) {
-    subscription.send({ getPayload: config, ...options })
-  }
-
   function createSubscription(config) {
     subscription.send({ createSubscription: config })
   }
 
   function removeSubscription(config) {
-    subscription.send({ removeSubscription: config })
+    restClient.post('/jason/api/remove_subscription', { config, consumerId })
+    .catch(e => console.error(e))
+  }
+
+  function getPayload(config, options) {
+    restClient.post('/jason/api/get_payload', {
+      config,
+      options
+    })
+    .then(({ data }) => {
+      _.map(data, (payload, modelName) => {
+        handlePayload(payload)
+      })
+    })
+    .catch(e => console.error(e))
+  }
+
+  function fullChannelName(channelName) {
+    return channelName
   }
 
   return { getPayload, createSubscription, removeSubscription }

@@ -1,7 +1,14 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const actioncable_1 = require("@rails/actioncable");
+const restClient_1 = __importDefault(require("../restClient"));
+const uuid_1 = require("uuid");
+const lodash_1 = __importDefault(require("lodash"));
 function actionCableAdapter(jasonConfig, handlePayload, dispatch, onConnected) {
+    const consumerId = uuid_1.v4();
     const consumer = actioncable_1.createConsumer();
     const subscription = (consumer.subscriptions.create({
         channel: 'Jason::Channel'
@@ -21,14 +28,27 @@ function actionCableAdapter(jasonConfig, handlePayload, dispatch, onConnected) {
             console.warn('Disconnected from ActionCable');
         }
     }));
-    function getPayload(config, options) {
-        subscription.send(Object.assign({ getPayload: config }, options));
-    }
     function createSubscription(config) {
         subscription.send({ createSubscription: config });
     }
     function removeSubscription(config) {
-        subscription.send({ removeSubscription: config });
+        restClient_1.default.post('/jason/api/remove_subscription', { config, consumerId })
+            .catch(e => console.error(e));
+    }
+    function getPayload(config, options) {
+        restClient_1.default.post('/jason/api/get_payload', {
+            config,
+            options
+        })
+            .then(({ data }) => {
+            lodash_1.default.map(data, (payload, modelName) => {
+                handlePayload(payload);
+            });
+        })
+            .catch(e => console.error(e));
+    }
+    function fullChannelName(channelName) {
+        return channelName;
     }
     return { getPayload, createSubscription, removeSubscription };
 }

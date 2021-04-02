@@ -18,7 +18,7 @@ export default function addRelations(s, objects, objectType, relations, suffix =
     const relation = relations
     if (_.isArray(objects)) {
       objects = objects.map(obj => addRelations(s, obj, objectType, relation))
-    } else {
+    } else if (_.isObject(objects)) {
       const relatedObjects = _.values(s[pluralize(relation) + suffix].entities)
 
       if(pluralize.isSingular(relation)) {

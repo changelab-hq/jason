@@ -1,1 +1,1 @@
-export default function useEager(entity: any, id?: null, relations?: never[]): any;
+export default function useEager(entity: string, id?: string, relations?: any): any;

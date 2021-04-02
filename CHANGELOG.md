@@ -10,6 +10,10 @@ useSub({ model: 'post', conditions: { hidden: false } })
 
 - Changed: Subscriptions no longer get cleared when consumer count drops to 0. This will be replaced in a future release with a reaping process to clean up inactive subscriptions.
 
+- Changed: ActionCable subscriptions get their initial payload via REST instead of ActionCable, as this seems to deliver snappier results
+
+- Fixed: Small bug in useEager that could throw error if relation wasn't present.
+
 ## v0.6.9
 - Added: Optimistic updates now return a promise which can chained to perform actions _after_ an update is persisted to server. (For example, if your component depends on fetching additional data that only exists once your instance is persisted)
 ```
