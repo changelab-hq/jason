@@ -50,12 +50,12 @@ class Jason::JasonController < ::ApplicationController
       return head :forbidden if !action_permitted?(model_name, action, instance, params)
 
       if instance.present?
-        model.update!(payload)
+        instance.update!(payload)
       else
-        model.create!(payload)
+        instance = model.create!(payload)
       end
 
-      return render json: model.find_or_create_by_id!(payload).as_json(api_model.as_json_config)
+      return render json: instance.as_json(api_model.as_json_config)
     elsif action == 'remove'
       instance = model.find(params[:payload])
       return head :forbidden if !action_permitted?(model_name, action, instance, params)

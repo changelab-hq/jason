@@ -24,10 +24,12 @@ RSpec.configure do |config|
     Jason.setup do |config|
       config.schema = {
         post: {
-          subscribed_fields: [:id, :name]
+          subscribed_fields: [:id, :name],
+          allowed_params: [:id, :name]
         },
         comment: {
-          subscribed_fields: [:id, :body, :post_id, :user_id, :moderating_user_id, :created_at]
+          subscribed_fields: [:id, :body, :post_id, :user_id, :moderating_user_id, :created_at],
+          allowed_params: [:id, :body]
         },
         user: {
           subscribed_fields: [:id]

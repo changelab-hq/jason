@@ -152,13 +152,15 @@ export default function Comment({ id }) {
 
 ## Authorization
 
-By default all models can be subscribed to and updated without authentication or authorization. Probably you want to lock down access.
+By default all models can be subscribed to and updated without authentication or authorization. Probably you want to lock down access. At the moment Jason has no opinion on how to handle authorization, it simply forwards parameters to a service that you provide - so the implementation can be as simple or as complex as you need.
 
 ### Authorizing subscriptions
 You can do this by providing an class to Jason in the initializer under the `subscription_authorization_service` key. This must be a class receiving a message `call` with the parameters `user`, `model`, `conditions`, `sub_models` and return true or false for whether the user is allowed to access a subscription with those parameters. You can decide the implementation details of this to be as simple or complex as your app requires.
 
 ### Authorizing updates
-Similarly to authorizing subscriptions, you can do this by providing an class to Jason in the initializer under the `update_authorization_service` key. This must be a class receiving a message `call` with the parameters `user`, `model`, `instance`, `update`, `remove` and return true or false for whether the user is allowed to access a subscription with those parameters.
+Similarly to authorizing subscriptions, you can do this by providing an class to Jason in the initializer under the `update_authorization_service` key. This must be a class receiving a message `call` with the parameters `user`, `model`, `action`, `instance`, `params`  and return true or false for whether the user is allowed to make this update.
+
+See the specs for some examples of this.
 
 ## Roadmap
 
@@ -169,9 +171,10 @@ Development is primarily driven by the needs of projects we're using Jason in. I
 - Utilities for "Draft editing" - both storing client-side copies of model trees which can be committed or discarded, as well as persisting a shadow copy to the database (to allow resumable editing, or possibly collaborative editing features)
 - Benchmark and migrate if necessary ConnectionPool::Wrapper vs ConnectionPool
 - Assess using RedisGraph for the graph diffing functionality, to see if this would provide a performance boost
+- Improve the Typescript definitions (ie remove the abundant `any` typing currently used)
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+The gem, npm package and source code in the git repository are available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
 
 
