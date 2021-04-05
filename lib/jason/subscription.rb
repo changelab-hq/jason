@@ -390,8 +390,8 @@ class Jason::Subscription
 
   def user_can_access?(user)
     # td: implement the authorization logic here
-    return true if Jason.authorization_service.blank?
-    Jason.authorization_service.call(user, model, conditions, includes_helper.all_models - [model])
+    return true if Jason.subscription_authorization_service.blank?
+    Jason.subscription_authorization_service.call(user, model, conditions, includes_helper.all_models - [model])
   end
 
   def get

@@ -25,7 +25,8 @@ module Jason
   self.mattr_accessor :pusher_key
   self.mattr_accessor :pusher_region
   self.mattr_accessor :pusher_channel_prefix
-  self.mattr_accessor :authorization_service
+  self.mattr_accessor :subscription_authorization_service
+  self.mattr_accessor :update_authorization_service
   self.mattr_accessor :sidekiq_queue
 
   self.schema = {}

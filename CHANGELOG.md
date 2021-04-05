@@ -1,3 +1,6 @@
+## v0.7.1
+- Added: Authorization for REST endpoints. Previously these just inherited logic from ApplicationController. Pass a `update_authorization_service` option to the Jason initializer to use this.
+
 ## v0.7.0
 - Added: New forms of conditional subscription. You can now add conditions on fields other than the primary key.
 E.g.

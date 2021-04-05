@@ -21,14 +21,17 @@ class Jason::JasonController < ::ApplicationController
   def action
     type = params[:type]
     entity = type.split('/')[0].underscore
-    api_model = Jason::ApiModel.new(entity.singularize)
-    model = entity.singularize.camelize.constantize
+    model_name = entity.singularize
+    api_model = Jason::ApiModel.new(model_name)
+    model = model_name.camelize.constantize
     action = type.split('/')[1].underscore
 
     if action == 'move_priority'
       id, priority = params[:payload].values_at(:id, :priority)
 
       instance = model.find(id)
+
+      return head :forbidden if !action_permitted?(model_name, action, instance, params)
       priority_filter = instance.as_json.with_indifferent_access.slice(*api_model.priority_scope)
 
       all_instance_ids = model.send(api_model.scope || :all).where(priority_filter).where.not(id: instance.id).order(:priority).pluck(:id)
@@ -40,10 +43,24 @@ class Jason::JasonController < ::ApplicationController
 
       model.find(all_instance_ids).each(&:force_publish_json)
     elsif action == 'upsert' || action == 'add'
+      id = params[:payload][:id]
       payload = api_model.permit(params)
+
+      instance = model.find_by(id: id)
+      return head :forbidden if !action_permitted?(model_name, action, instance, params)
+
+      if instance.present?
+        model.update!(payload)
+      else
+        model.create!(payload)
+      end
+
       return render json: model.find_or_create_by_id!(payload).as_json(api_model.as_json_config)
     elsif action == 'remove'
-      model.find(params[:payload]).destroy!
+      instance = model.find(params[:payload])
+      return head :forbidden if !action_permitted?(model_name, action, instance, params)
+
+      instance.destroy!
     end
 
     return head :ok
@@ -74,5 +91,10 @@ class Jason::JasonController < ::ApplicationController
     if !@subscription.user_can_access?(current_user)
       return head :forbidden
     end
+  end
+
+  def action_permitted?(model_name, action, instance, params)
+    return true if Jason.update_authorization_service.blank?
+    Jason.update_authorization_service.call(current_user, model_name, action, instance, params)
   end
 end

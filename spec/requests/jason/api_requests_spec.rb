@@ -53,11 +53,11 @@ RSpec.describe "API Requests", type: 'request' do
 
     context "using authorization service" do
       before do
-        Jason.authorization_service = TestAuthorizationService
+        Jason.subscription_authorization_service = TestAuthorizationService
       end
 
       after do
-        Jason.authorization_service = nil
+        Jason.subscription_authorization_service = nil
       end
 
       it "rejects the subscription request with no user" do
@@ -203,7 +203,7 @@ RSpec.describe "API Requests", type: 'request' do
     end
 
     it "applies auth" do
-      Jason.authorization_service = TestAuthorizationService
+      Jason.subscription_authorization_service = TestAuthorizationService
 
       post '/jason/api/get_payload' , params: {
         config: {
@@ -220,7 +220,7 @@ RSpec.describe "API Requests", type: 'request' do
       expect(response.body).to eq("")
       expect(response.code).to eq('403')
 
-      Jason.authorization_service = nil
+      Jason.subscription_authorization_service = nil
 
     end
   end

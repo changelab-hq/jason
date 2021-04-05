@@ -150,35 +150,6 @@ module Jason::Publisher
       self.after_commit :force_publish_json, on: [:create, :destroy]
       self.after_commit :publish_json_if_changed, on: [:update]
     end
-
-    def find_or_create_by_id(params)
-      object = find_by(id: params[:id])
-
-      if object
-        object.update(params)
-      elsif params[:hidden]
-        return false ## If an object is passed with hidden = true but didn't already exist, it's safe to never create it
-      else
-        object = create!(params)
-      end
-
-      object
-    end
-
-    def find_or_create_by_id!(params)
-      object = find_by(id: params[:id])
-
-      if object
-        object.update!(params)
-      elsif params[:hidden]
-        ## TODO: We're diverging from semantics of the Rails bang! methods here, which would normally either raise or return an object. Find a way to make this better.
-        return false ## If an object is passed with hidden = true but didn't already exist, it's safe to never create it
-      else
-        object = create!(params)
-      end
-
-      object
-    end
   end
 
   included do
