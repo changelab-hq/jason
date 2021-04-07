@@ -16,7 +16,7 @@ const humps_1 = require("humps");
 const blueimp_md5_1 = __importDefault(require("blueimp-md5"));
 const lodash_1 = __importDefault(require("lodash"));
 const react_1 = require("react");
-function useJason({ reducers, middleware = [], extraActions }) {
+function useJason({ reducers, middleware = [], enhancers = [], extraActions }) {
     const [store, setStore] = react_1.useState(null);
     const [value, setValue] = react_1.useState(null);
     react_1.useEffect(() => {
@@ -28,7 +28,7 @@ function useJason({ reducers, middleware = [], extraActions }) {
             const serverActionQueue = createServerActionQueue_1.default();
             const allReducers = Object.assign(Object.assign({}, reducers), createJasonReducers_1.default(schema));
             console.debug({ allReducers });
-            const store = toolkit_1.configureStore({ reducer: allReducers, middleware: [...middleware, pruneIdsMiddleware_1.default(schema)] });
+            const store = toolkit_1.configureStore({ reducer: allReducers, middleware: [...middleware, pruneIdsMiddleware_1.default(schema)], enhancers });
             const dispatch = store.dispatch;
             const optDis = createOptDis_1.default(schema, dispatch, restClient_1.default, serverActionQueue);
             const actions = createActions_1.default(schema, store, restClient_1.default, optDis, extraActions);

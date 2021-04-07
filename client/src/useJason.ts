@@ -14,7 +14,7 @@ import md5 from 'blueimp-md5'
 import _ from 'lodash'
 import React, { useState, useEffect } from 'react'
 
-export default function useJason({ reducers, middleware = [], extraActions }: { reducers?: any, middleware?: any[], extraActions?: any }) {
+export default function useJason({ reducers, middleware = [], enhancers = [], extraActions }: { reducers?: any, middleware?: any[], enhancers?: any[], extraActions?: any }) {
   const [store, setStore] = useState(null as any)
   const [value, setValue] = useState(null as any)
 
@@ -35,7 +35,7 @@ export default function useJason({ reducers, middleware = [], extraActions }: { 
 
       console.debug({ allReducers })
 
-      const store = configureStore({ reducer: allReducers, middleware: [...middleware, pruneIdsMiddleware(schema)] })
+      const store = configureStore({ reducer: allReducers, middleware: [...middleware, pruneIdsMiddleware(schema)], enhancers })
       const dispatch = store.dispatch
 
       const optDis = createOptDis(schema, dispatch, restClient, serverActionQueue)
