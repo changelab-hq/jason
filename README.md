@@ -173,6 +173,14 @@ Development is primarily driven by the needs of projects we're using Jason in. I
 - Assess using RedisGraph for the graph diffing functionality, to see if this would provide a performance boost
 - Improve the Typescript definitions (ie remove the abundant `any` typing currently used)
 
+## Publishing a new version
+- Update `version.rb`
+- `gem build`
+- `gem push`
+- `npm version [major/minor/patch]`
+- `npm publish`
+- Push new version to Github
+
 ## License
 
 The gem, npm package and source code in the git repository are available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).

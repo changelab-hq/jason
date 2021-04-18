@@ -16,7 +16,7 @@ module Jason::Publisher
 
     # Exists
     if self.persisted? && (scope.blank? || self.class.unscoped.send(scope).exists?(self.id))
-      payload = self.reload.as_json(as_json_config)
+      payload = self.as_json(as_json_config)
       gidx = Jason::LuaGenerator.new.cache_json(self.class.name.underscore, self.id, payload)
       return [payload, gidx]
     # Has been destroyed
@@ -129,7 +129,7 @@ module Jason::Publisher
 
   class_methods do
     def cache_all
-      all.each(&:cache_json)
+      all.find_each(&:cache_json)
     end
 
     def has_jason?

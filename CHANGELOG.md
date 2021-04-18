@@ -1,3 +1,7 @@
+## v0.7.3
+- Added: Add JasonContext to exports, for use in scenarios where you need to forward the context into some other React reconciler (e.g. `react-three-fiber`)
+- Fixed: Unneeded `reload` in Publisher resulting in extra database calls
+
 ## v0.7.1
 - Added: Authorization for REST endpoints. Previously these just inherited logic from ApplicationController. Pass a `update_authorization_service` option to the Jason initializer to use this.
 

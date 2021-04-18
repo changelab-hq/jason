@@ -2,6 +2,11 @@
 import _useAct from './useAct';
 import _useSub from './useSub';
 import _useEager from './useEager';
+export declare const JasonContext: import("react").Context<{
+    actions: any;
+    subscribe: null;
+    eager: (entity: any, id: any, relations: any) => void;
+}>;
 export declare const JasonProvider: ({ reducers, middleware, enhancers, extraActions, children }: {
     reducers?: any;
     middleware?: any;
