@@ -52,6 +52,11 @@ Jason.setup do |config|
 end
 ```
 
+Mount the Jason engine in `routes.rb`
+```ruby
+mount Jason::Engine => "/jason"
+```
+
 ### In your frontend code
 
 First you need to wrap your root component in a `JasonProvider`.

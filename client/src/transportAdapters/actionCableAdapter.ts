@@ -3,10 +3,12 @@ import restClient from '../restClient'
 import { v4 as uuidv4 } from 'uuid'
 import _ from 'lodash'
 
-export default function actionCableAdapter(jasonConfig, handlePayload, dispatch, onConnected) {
+export default function actionCableAdapter(jasonConfig, handlePayload, dispatch, onConnected, transportOptions) {
   const consumerId = uuidv4()
 
-  const consumer = createConsumer()
+  const { cableUrl } = transportOptions
+  const consumer = cableUrl ? createConsumer(cableUrl) : createConsumer()
+
   const subscription = (consumer.subscriptions.create({
     channel: 'Jason::Channel'
   }, {

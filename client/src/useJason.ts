@@ -14,7 +14,7 @@ import md5 from 'blueimp-md5'
 import _ from 'lodash'
 import React, { useState, useEffect } from 'react'
 
-export default function useJason({ reducers, middleware = [], enhancers = [], extraActions }: { reducers?: any, middleware?: any[], enhancers?: any[], extraActions?: any }) {
+export default function useJason({ reducers, middleware = [], enhancers = [], transportOptions = {}, extraActions }: { reducers?: any, middleware?: any[], enhancers?: any[], extraActions?: any, transportOptions?: any }) {
   const [store, setStore] = useState(null as any)
   const [value, setValue] = useState(null as any)
 
@@ -56,7 +56,13 @@ export default function useJason({ reducers, middleware = [], enhancers = [], ex
         }
       }
 
-      const transportAdapter = createTransportAdapater(jasonConfig, handlePayload, dispatch, () => _.keys(configs).forEach(md5Hash => createSubscription(configs[md5Hash], subOptions[md5Hash])))
+      const transportAdapter = createTransportAdapater(
+        jasonConfig,
+        handlePayload,
+        dispatch,
+        () => _.keys(configs).forEach(md5Hash => createSubscription(configs[md5Hash], subOptions[md5Hash])),
+        transportOptions
+      )
 
       function createSubscription(config, options = {}) {
         // We need the hash to be consistent in Ruby / Javascript

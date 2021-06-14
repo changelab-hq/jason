@@ -7,9 +7,10 @@ const actioncable_1 = require("@rails/actioncable");
 const restClient_1 = __importDefault(require("../restClient"));
 const uuid_1 = require("uuid");
 const lodash_1 = __importDefault(require("lodash"));
-function actionCableAdapter(jasonConfig, handlePayload, dispatch, onConnected) {
+function actionCableAdapter(jasonConfig, handlePayload, dispatch, onConnected, transportOptions) {
     const consumerId = uuid_1.v4();
-    const consumer = actioncable_1.createConsumer();
+    const { cableUrl } = transportOptions;
+    const consumer = cableUrl ? actioncable_1.createConsumer(cableUrl) : actioncable_1.createConsumer();
     const subscription = (consumer.subscriptions.create({
         channel: 'Jason::Channel'
     }, {

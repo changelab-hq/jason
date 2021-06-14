@@ -16,7 +16,7 @@ const humps_1 = require("humps");
 const blueimp_md5_1 = __importDefault(require("blueimp-md5"));
 const lodash_1 = __importDefault(require("lodash"));
 const react_1 = require("react");
-function useJason({ reducers, middleware = [], enhancers = [], extraActions }) {
+function useJason({ reducers, middleware = [], enhancers = [], transportOptions = {}, extraActions }) {
     const [store, setStore] = react_1.useState(null);
     const [value, setValue] = react_1.useState(null);
     react_1.useEffect(() => {
@@ -45,7 +45,7 @@ function useJason({ reducers, middleware = [], enhancers = [], extraActions }) {
                     console.warn("Payload arrived with no handler", payload, payloadHandlers);
                 }
             }
-            const transportAdapter = createTransportAdapter_1.default(jasonConfig, handlePayload, dispatch, () => lodash_1.default.keys(configs).forEach(md5Hash => createSubscription(configs[md5Hash], subOptions[md5Hash])));
+            const transportAdapter = createTransportAdapter_1.default(jasonConfig, handlePayload, dispatch, () => lodash_1.default.keys(configs).forEach(md5Hash => createSubscription(configs[md5Hash], subOptions[md5Hash])), transportOptions);
             function createSubscription(config, options = {}) {
                 // We need the hash to be consistent in Ruby / Javascript
                 const hashableConfig = lodash_1.default(Object.assign({ conditions: {}, includes: {} }, config)).toPairs().sortBy(0).fromPairs().value();

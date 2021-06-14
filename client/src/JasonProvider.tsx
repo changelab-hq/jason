@@ -3,8 +3,8 @@ import useJason from './useJason'
 import { Provider } from 'react-redux'
 import JasonContext from './JasonContext'
 
-const JasonProvider = ({ reducers, middleware, enhancers, extraActions, children }: { reducers?: any, middleware?: any, enhancers?: any, extraActions?: any, children?: React.FC }) => {
-  const [store, value] = useJason({ reducers, middleware, enhancers, extraActions })
+const JasonProvider = ({ reducers, middleware, enhancers, extraActions, transportOptions = {}, children }: { reducers?: any, middleware?: any, enhancers?: any, extraActions?: any, transportOptions?: any, children?: React.FC }) => {
+  const [store, value] = useJason({ reducers, middleware, enhancers, extraActions, transportOptions })
 
   if(!(store && value)) return <div /> // Wait for async fetch of schema to complete
 
