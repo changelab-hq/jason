@@ -180,6 +180,7 @@ Development is primarily driven by the needs of projects we're using Jason in. I
 
 ## Publishing a new version
 - Update `version.rb`
+- Update CHANGELOG
 - `gem build`
 - `gem push`
 - `npm version [major/minor/patch]`

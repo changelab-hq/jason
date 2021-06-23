@@ -37,7 +37,7 @@ function useJason({ reducers, middleware = [], enhancers = [], transportOptions 
             let subOptions = {};
             function handlePayload(payload) {
                 const { md5Hash } = payload;
-                const { handlePayload } = payloadHandlers[md5Hash];
+                const { handlePayload } = payloadHandlers[md5Hash] || {};
                 if (handlePayload) {
                     handlePayload(payload);
                 }

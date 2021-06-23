@@ -51,7 +51,11 @@ module Jason
         puts "Old config was #{previous_schema[model]}"
         puts "New config is #{config}"
         puts "Rebuilding cache for #{model}"
-        model.classify.constantize.cache_all
+
+        # This is necessary to ensure all Rails methods have been added to model before we attempt to cache.
+        Rails.configuration.after_initialize do
+           model.classify.constantize.cache_all
+        end
         puts "Done"
       end
     end

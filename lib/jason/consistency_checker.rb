@@ -21,6 +21,10 @@ class Jason::ConsistencyChecker
     check_all(fix: true)
   end
 
+  def wipe_all_subs
+
+  end
+
   def initialize(subscription)
     @subscription = subscription
     @inconsistent = false
