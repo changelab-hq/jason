@@ -21,7 +21,7 @@ An alternative way of thinking about Jason is "what if we applied the Flux/Redux
 Add the gem and the NPM package
 
 ```ruby
-gem 'jason-rails'
+gem 'jason-rails', require: 'jason'
 ```
 
 ```bash
