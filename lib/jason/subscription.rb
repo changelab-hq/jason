@@ -399,14 +399,15 @@ class Jason::Subscription
   end
 
   def get_for_model(model_name)
-    if $redis_jason.sismember("jason:models:#{model_name}:all:subscriptions", id)
-      instance_jsons_hash, idx = $redis_jason.multi do |r|
-        r.hgetall("jason:cache:#{model_name}")
-        r.get("jason:subscription:#{id}:#{model_name}:idx")
-      end
-      instance_jsons = instance_jsons_hash.values
-    else
+    instance_jsons, idx = Jason::LuaGenerator.new.get_payload(model_name, id)
+    if idx == 'missing'
+      # warm cache and then retry
+      model_klass(model_name).cache_for(instance_jsons)
       instance_jsons, idx = Jason::LuaGenerator.new.get_payload(model_name, id)
+    end
+
+    if instance_jsons.any? { |json| json.blank? }
+      raise Jason::MissingCacheError
     end
 
     payload = instance_jsons.map do |instance_json|
@@ -437,7 +438,7 @@ class Jason::Subscription
 
   def add(model_name, instance_id)
     idx = $redis_jason.incr("jason:subscription:#{id}:#{model_name}:idx")
-    payload = JSON.parse($redis_jason.hget("jason:cache:#{model_name}", instance_id) || '{}')
+    payload = JSON.parse($redis_jason.get("jason:cache:#{model_name}:#{instance_id}") || '{}')
 
     payload = {
       id: instance_id,
@@ -479,3 +480,5 @@ class Jason::Subscription
     broadcaster.broadcast(payload)
   end
 end
+
+class Jason::MissingCacheError < StandardError; end

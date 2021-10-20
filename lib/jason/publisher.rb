@@ -124,12 +124,16 @@ module Jason::Publisher
   end
 
   def jason_cached_value
-    JSON.parse($redis_jason.hget("jason:cache:#{self.class.name.underscore}", id) || '{}')
+    JSON.parse($redis_jason.get("jason:cache:#{self.class.name.underscore}:#{id}") || '{}')
   end
 
   class_methods do
     def cache_all
       all.find_each(&:cache_json)
+    end
+
+    def cache_for(ids)
+      where(id: ids).find_each(&:cache_json)
     end
 
     def has_jason?

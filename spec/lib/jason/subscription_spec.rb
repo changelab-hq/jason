@@ -1078,4 +1078,31 @@ RSpec.describe Jason::Subscription do
       expect(broadcasts.map{ |b| b[:message][:model]}).to match_array(['post', 'comment', 'user', 'role'])
     end
   end
+
+  context "cold cache handling" do
+    let(:post) { Post.create! }
+
+    let!(:user1) { User.create! }
+    let!(:user2) { User.create! }
+    let!(:comment1) { Comment.create!(post: post, user: user1 )}
+    let!(:comment2) { Comment.create!(post: post, user: user2 )}
+
+    let!(:like1) { Like.create!(comment: comment1, user: user1 )}
+    let!(:like2) { Like.create!(comment: comment2, user: user2 )}
+
+    let(:subscription) { Jason::Subscription.upsert_by_config('post', conditions: { id: post.id }, includes: { comments: [:likes, :user] }) }
+
+    before do
+      subscription.add_consumer('cde456')
+    end
+
+    it "does a thing" do
+      full_payload = subscription.get
+
+      $redis_jason.del("jason:cache:comment:#{comment1.id}")
+      payload = subscription.get
+
+      expect(payload).to eq(full_payload)
+    end
+  end
 end
