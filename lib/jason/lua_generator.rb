@@ -1,10 +1,13 @@
 class Jason::LuaGenerator
   ## TODO load these scripts and evalsha
   def cache_json(model_name, id, payload)
+    expiry = 7*24*60*60 + rand(6*60*60)
+
+    # ensure the content expires first
     cmd = <<~LUA
       local gidx = redis.call('INCR', 'jason:gidx')
-      redis.call( 'set', 'jason:cache:' .. ARGV[1] .. ':' .. ARGV[2] .. ':gidx', gidx )
-      redis.call( 'set', 'jason:cache:' .. ARGV[1] .. ':' .. ARGV[2], ARGV[3] )
+      redis.call( 'setex', 'jason:cache:' .. ARGV[1] .. ':' .. ARGV[2] .. ':gidx', #{expiry}, gidx )
+      redis.call( 'setex', 'jason:cache:' .. ARGV[1] .. ':' .. ARGV[2], #{expiry - 60}, ARGV[3] )
       return gidx
     LUA
 
