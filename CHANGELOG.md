@@ -1,3 +1,8 @@
+## v0.8.0
+- Cold cache handling:
+ - Expiry is now set on all cached models of one week
+ - Code now handles case where cached model is missing and repopulates the cache
+
 ## v0.7.5
 - Fixed JS errors when payloads arrive on websockets after the subscription has been unmounted
 - Fixed errors during initialization due to calling `cache_all` on a Rails model before it had fully initialized.
