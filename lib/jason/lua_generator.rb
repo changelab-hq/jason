@@ -1,10 +1,13 @@
 class Jason::LuaGenerator
   ## TODO load these scripts and evalsha
   def cache_json(model_name, id, payload)
+    expiry = 7*24*60*60 + rand(6*60*60)
+
+    # ensure the content expires first
     cmd = <<~LUA
       local gidx = redis.call('INCR', 'jason:gidx')
-      redis.call( 'set', 'jason:cache:' .. ARGV[1] .. ':' .. ARGV[2] .. ':gidx', gidx )
-      redis.call( 'hset', 'jason:cache:' .. ARGV[1], ARGV[2], ARGV[3] )
+      redis.call( 'setex', 'jason:cache:' .. ARGV[1] .. ':' .. ARGV[2] .. ':gidx', #{expiry}, gidx )
+      redis.call( 'setex', 'jason:cache:' .. ARGV[1] .. ':' .. ARGV[2], #{expiry - 60}, ARGV[3] )
       return gidx
     LUA
 
@@ -15,15 +18,26 @@ class Jason::LuaGenerator
     # If value has changed, return old value and new idx. Otherwise do nothing.
     cmd = <<~LUA
       local t = {}
-      local models = {}
+      local insts = {}
+      local miss_ids = {}
       local ids = redis.call('smembers', 'jason:subscriptions:' .. ARGV[2] .. ':ids:' .. ARGV[1])
 
       for k,id in pairs(ids) do
-        models[#models+1] = redis.call( 'hget', 'jason:cache:' .. ARGV[1], id)
+        local result = redis.call( 'get', 'jason:cache:' .. ARGV[1] .. ':' .. id)
+        if (result == false) then
+          miss_ids[#miss_ids+1] = id
+        else
+          insts[#insts+1] = result
+        end
       end
 
-      t[#t+1] = models
-      t[#t+1] = redis.call( 'get', 'jason:subscription:' .. ARGV[2] .. ':' .. ARGV[1] .. ':idx' )
+      if next(miss_ids) == nil then
+        t[#t+1] = insts
+        t[#t+1] = redis.call( 'get', 'jason:subscription:' .. ARGV[2] .. ':' .. ARGV[1] .. ':idx' )
+      else
+        t[#t+1] = miss_ids
+        t[#t+1] = 'missing'
+      end
 
       return t
     LUA
