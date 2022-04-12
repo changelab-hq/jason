@@ -29,6 +29,8 @@ export default function createOptDis(schema, dispatch, restClient, serverActionQ
     .catch(error => {
       dispatch({ type: 'jason/upsert', payload: { error } })
       serverActionQueue.itemFailed(id, error)
+
+      Promise.reject(error)
     })
   }
 

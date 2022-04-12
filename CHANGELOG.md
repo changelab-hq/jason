@@ -1,3 +1,6 @@
+## v0.7.5.1
+- Fix bug where axios errors get swallowed
+
 ## v0.7.5
 - Fixed JS errors when payloads arrive on websockets after the subscription has been unmounted
 - Fixed errors during initialization due to calling `cache_all` on a Rails model before it had fully initialized.

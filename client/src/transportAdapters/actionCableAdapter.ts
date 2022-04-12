@@ -35,7 +35,10 @@ export default function actionCableAdapter(jasonConfig, handlePayload, dispatch,
 
   function removeSubscription(config) {
     restClient.post('/jason/api/remove_subscription', { config, consumerId })
-    .catch(e => console.error(e))
+    .catch(e => {
+      console.error(e)
+      Promise.reject(e)
+    })
   }
 
   function getPayload(config, options) {
@@ -48,7 +51,10 @@ export default function actionCableAdapter(jasonConfig, handlePayload, dispatch,
         handlePayload(payload)
       })
     })
-    .catch(e => console.error(e))
+    .catch(e => {
+      console.error(e)
+      Promise.reject(e)
+    })
   }
 
   function fullChannelName(channelName) {

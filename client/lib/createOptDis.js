@@ -29,6 +29,7 @@ function createOptDis(schema, dispatch, restClient, serverActionQueue) {
             .catch(error => {
             dispatch({ type: 'jason/upsert', payload: { error } });
             serverActionQueue.itemFailed(id, error);
+            Promise.reject(error);
         });
     }
     setInterval(dispatchServerAction, 10);

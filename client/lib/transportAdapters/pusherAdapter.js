@@ -33,13 +33,19 @@ function pusherAdapter(jasonConfig, handlePayload, dispatch) {
             configToChannel[JSON.stringify(config)] = channelName;
             subscribeToChannel(channelName);
         })
-            .catch(e => console.error(e));
+            .catch(e => {
+            console.error(e);
+            Promise.reject(e);
+        });
     }
     function removeSubscription(config) {
         const channelName = configToChannel[JSON.stringify(config)];
         unsubscribeFromChannel(fullChannelName(channelName));
         restClient_1.default.post('/jason/api/remove_subscription', { config, consumerId })
-            .catch(e => console.error(e));
+            .catch(e => {
+            console.error(e);
+            Promise.reject(e);
+        });
     }
     function getPayload(config, options) {
         restClient_1.default.post('/jason/api/get_payload', {
@@ -51,7 +57,10 @@ function pusherAdapter(jasonConfig, handlePayload, dispatch) {
                 handlePayload(payload);
             });
         })
-            .catch(e => console.error(e));
+            .catch(e => {
+            console.error(e);
+            Promise.reject(e);
+        });
     }
     function subscribeToChannel(channelName) {
         const channel = pusher.subscribe(fullChannelName(channelName));

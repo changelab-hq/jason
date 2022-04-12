@@ -31,14 +31,20 @@ export default function pusherAdapter(jasonConfig, handlePayload, dispatch) {
       configToChannel[JSON.stringify(config)] = channelName
       subscribeToChannel(channelName)
     })
-    .catch(e => console.error(e))
+    .catch(e => {
+      console.error(e)
+      Promise.reject(e)
+    })
   }
 
   function removeSubscription(config) {
     const channelName = configToChannel[JSON.stringify(config)]
     unsubscribeFromChannel(fullChannelName(channelName))
     restClient.post('/jason/api/remove_subscription', { config, consumerId })
-    .catch(e => console.error(e))
+    .catch(e => {
+      console.error(e)
+      Promise.reject(e)
+    })
   }
 
   function getPayload(config, options) {
@@ -51,7 +57,10 @@ export default function pusherAdapter(jasonConfig, handlePayload, dispatch) {
         handlePayload(payload)
       })
     })
-    .catch(e => console.error(e))
+    .catch(e => {
+      console.error(e)
+      Promise.reject(e)
+    })
   }
 
   function subscribeToChannel(channelName) {

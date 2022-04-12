@@ -34,7 +34,10 @@ function actionCableAdapter(jasonConfig, handlePayload, dispatch, onConnected, t
     }
     function removeSubscription(config) {
         restClient_1.default.post('/jason/api/remove_subscription', { config, consumerId })
-            .catch(e => console.error(e));
+            .catch(e => {
+            console.error(e);
+            Promise.reject(e);
+        });
     }
     function getPayload(config, options) {
         restClient_1.default.post('/jason/api/get_payload', {
@@ -46,7 +49,10 @@ function actionCableAdapter(jasonConfig, handlePayload, dispatch, onConnected, t
                 handlePayload(payload);
             });
         })
-            .catch(e => console.error(e));
+            .catch(e => {
+            console.error(e);
+            Promise.reject(e);
+        });
     }
     function fullChannelName(channelName) {
         return channelName;
