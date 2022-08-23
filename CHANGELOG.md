@@ -1,3 +1,6 @@
+## v0.8.1
+- Allow setting the Sidekiq queue name for Jason payloads
+
 ## v0.8.0
 - Cold cache handling:
  - Expiry is now set on all cached models of one week
