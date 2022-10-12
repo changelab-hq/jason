@@ -50,12 +50,9 @@ module Jason
         puts "Config changed for #{model}"
         puts "Old config was #{previous_schema[model]}"
         puts "New config is #{config}"
-        puts "Rebuilding cache for #{model}"
+        puts "Wiping cache for #{model}"
 
-        # This is necessary to ensure all Rails methods have been added to model before we attempt to cache.
-        Rails.configuration.after_initialize do
-           model.classify.constantize.cache_all
-        end
+        $redis_jason.del("jason:cache:#{model}")
         puts "Done"
       end
     end

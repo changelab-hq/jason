@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    jason-rails (0.7.5)
+    jason-rails (0.8.1)
       connection_pool (>= 2.2.3)
       jsondiff
       rails (>= 5)
@@ -92,10 +92,10 @@ GEM
     mimemagic (0.3.10)
       nokogiri (~> 1)
       rake
-    mini_mime (1.1.0)
+    mini_mime (1.1.2)
     mini_portile2 (2.5.0)
     minitest (5.14.3)
-    nio4r (2.5.7)
+    nio4r (2.5.8)
     nokogiri (1.11.1)
       mini_portile2 (~> 2.5.0)
       racc (~> 1.4)

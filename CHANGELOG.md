@@ -1,3 +1,6 @@
+## v0.8.2
+- Don't rebuild cache during schema change detection - just wipe it and let cold cache handling work as intended
+
 ## v0.8.1
 - Allow setting the Sidekiq queue name for Jason payloads
 
