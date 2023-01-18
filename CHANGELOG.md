@@ -1,3 +1,6 @@
+## v0.8.3
+- Fix lock bug on checking dupe schema
+
 ## v0.8.2
 - Don't rebuild cache during schema change detection - just wipe it and let cold cache handling work as intended
 

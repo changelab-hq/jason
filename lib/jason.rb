@@ -40,7 +40,7 @@ module Jason
     return if $PROGRAM_NAME == '-e' || ActiveRecord::Base.connection.migration_context.needs_migration?
 
     # Check if the schema has changed since last time app was started. If so, do some work to ensure cache contains the correct data
-    got_lock = $redis_jason.set('jason:schema:lock', nx: true, ex: 3600) # Basic lock mechanism for multi-process environments
+    got_lock = $redis_jason.set('jason:schema:lock', '1', nx: true, ex: 3600) # Basic lock mechanism for multi-process environments
     return if !got_lock
 
     previous_schema = JSON.parse($redis_jason.get('jason:last_schema') || '{}')

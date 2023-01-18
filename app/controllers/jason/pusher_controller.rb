@@ -1,4 +1,4 @@
- class Jason::PusherController < ApplicationController
+class Jason::PusherController < ApplicationController
   skip_before_action :verify_authenticity_token
 
   def auth
