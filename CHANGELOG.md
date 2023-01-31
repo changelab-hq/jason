@@ -1,3 +1,6 @@
+## v0.8.4
+- Fix implicit kwargs that fail in Ruby 3+
+
 ## v0.8.3
 - Fix lock bug on checking dupe schema
 

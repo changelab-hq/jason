@@ -106,13 +106,13 @@ class Jason::Subscription
         subscription.load_ids_for_sub_models(foreign_model_name, new_foreign_id)
       ] : nil
 
-      id_changeset = subscription.graph_helper.apply_update({
+      id_changeset = subscription.graph_helper.apply_update(
         remove: [{
           model_names: [changed_model_name, foreign_model_name],
           instance_ids: [[changed_model_id, old_foreign_id]]
         }],
         add: add
-      })
+      )
 
       subscription.apply_id_changeset(id_changeset)
       subscription.broadcast_id_changeset(id_changeset)
@@ -127,7 +127,7 @@ class Jason::Subscription
     # this is simple, only the edges need to change - no IDs can be changed
     (old_sub_ids & new_sub_ids).each do |sub_id|
       subscription = find_by_id(sub_id)
-      subscription.graph_helper.apply_update({
+      subscription.graph_helper.apply_update(
         remove: [{
           model_names: [changed_model_name, foreign_model_name],
           instance_ids: [[changed_model_id, old_foreign_id]]
@@ -136,7 +136,7 @@ class Jason::Subscription
           model_names: [changed_model_name, foreign_model_name],
           instance_ids: [[changed_model_id, new_foreign_id]]
         }]
-      })
+      )
     end
 
     #########
@@ -146,7 +146,7 @@ class Jason::Subscription
     # No edges are removed, just added
     (new_sub_ids - old_sub_ids).each do |sub_id|
       subscription = find_by_id(sub_id)
-      id_changeset = subscription.graph_helper.apply_update({
+      id_changeset = subscription.graph_helper.apply_update(
         add: [
           {
             model_names: [changed_model_name, foreign_model_name],
@@ -155,7 +155,7 @@ class Jason::Subscription
           # Add IDs of child models
           subscription.load_ids_for_sub_models(changed_model_name, changed_model_id)
         ]
-      })
+      )
 
       subscription.apply_id_changeset(id_changeset)
       subscription.broadcast_id_changeset(id_changeset)
@@ -168,14 +168,14 @@ class Jason::Subscription
     # Just need to remove the link, orphan detection will do the rest
     (old_sub_ids - new_sub_ids).each do |sub_id|
       subscription = find_by_id(sub_id)
-      id_changeset = subscription.graph_helper.apply_update({
+      id_changeset = subscription.graph_helper.apply_update(
         remove: [
           {
             model_names: [changed_model_name, foreign_model_name],
             instance_ids: [[changed_model_id, old_foreign_id]]
           }
         ]
-      })
+      )
       subscription.apply_id_changeset(id_changeset)
       subscription.broadcast_id_changeset(id_changeset)
     end
@@ -232,7 +232,7 @@ class Jason::Subscription
   end
 
   def add_id(model_name, id)
-    id_changeset = graph_helper.apply_update({
+    id_changeset = graph_helper.apply_update(
       add: [
         {
           model_names: [model_name],
@@ -241,7 +241,7 @@ class Jason::Subscription
         # Add IDs of child models
         load_ids_for_sub_models(model_name, id)
       ]
-    })
+    )
 
     apply_id_changeset(id_changeset)
     broadcast_id_changeset(id_changeset)
@@ -316,10 +316,10 @@ class Jason::Subscription
   def set_ids_for_sub_models(model_name = model, ids = nil, enforce: false)
     edge_set = load_ids_for_sub_models(model_name, ids)
     # Build the tree
-    id_changeset = graph_helper.apply_update({
+    id_changeset = graph_helper.apply_update(
       add: [edge_set],
       enforce: enforce
-    })
+    )
 
     apply_id_changeset(id_changeset)
   end
