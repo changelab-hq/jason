@@ -22,6 +22,7 @@ module Jason
   self.mattr_accessor :transport_service
   self.mattr_accessor :redis
   self.mattr_accessor :pusher
+  self.mattr_accessor :pusher_host
   self.mattr_accessor :pusher_key
   self.mattr_accessor :pusher_region
   self.mattr_accessor :pusher_channel_prefix
