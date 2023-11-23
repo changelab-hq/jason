@@ -7,10 +7,10 @@ export default function pusherAdapter(jasonConfig, handlePayload, dispatch) {
   const consumerId = uuidv4()
 
   const { pusherHost, pusherKey, pusherRegion, pusherChannelPrefix } = jasonConfig
-  let config = {
+  let config : any = {
     cluster: pusherRegion,
     forceTLS: true,
-    authEndpoint: '/jason/api/pusher/auth'
+    authEndpoint: '/jason/api/pusher/auth',
   }
   if (pusherHost) {
     config = {

@@ -1,3 +1,6 @@
+## v0.8.6
+- Fix config usage, to allow changing websocket provider
+
 ## v0.8.4
 - Fix implicit kwargs that fail in Ruby 3+
 

@@ -9,12 +9,16 @@ const uuid_1 = require("uuid");
 const lodash_1 = __importDefault(require("lodash"));
 function pusherAdapter(jasonConfig, handlePayload, dispatch) {
     const consumerId = uuid_1.v4();
-    const { pusherKey, pusherRegion, pusherChannelPrefix } = jasonConfig;
-    const pusher = new pusher_js_1.default(pusherKey, {
-        cluster: 'eu',
+    const { pusherHost, pusherKey, pusherRegion, pusherChannelPrefix } = jasonConfig;
+    let config = {
+        cluster: pusherRegion,
         forceTLS: true,
-        authEndpoint: '/jason/api/pusher/auth'
-    });
+        authEndpoint: '/jason/api/pusher/auth',
+    };
+    if (pusherHost) {
+        config = Object.assign(Object.assign({}, config), { wsHost: pusherHost, httpHost: pusherHost });
+    }
+    const pusher = new pusher_js_1.default(pusherKey, config);
     pusher.connection.bind('state_change', ({ current }) => {
         if (current === 'connected') {
             dispatch({ type: 'jason/upsert', payload: { connected: true } });
