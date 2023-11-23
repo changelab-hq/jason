@@ -11,6 +11,7 @@ class Jason::JasonController < ::ApplicationController
       payload.merge!({
         pusherKey: Jason.pusher_key,
         pusherRegion: Jason.pusher_region,
+        pusherHost: Jason.pusher_host || nil,
         pusherChannelPrefix: Jason.pusher_channel_prefix
       })
     end
